@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moonbase — Strategic Survival</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:,">
+</head>
+
+<body>
+
+  <!-- =========================================================
+       TOP BAR
+  ========================================================= -->
+  <div id="top-bar">
+    <div class="top-bar-brand">Moonbase</div>
+
+    <div class="top-bar-resources">
+
+      <!-- Regolith -->
+      <div class="res-chip" id="chip-reg">
+        <span class="res-icon"><i data-lucide="layers"></i></span>
+        <div class="res-body">
+          <span class="res-label">REGOLITH</span>
+          <div class="res-row">
+            <span class="res-value" id="res-reg-val">600</span>
+            <span class="res-delta zero" id="res-reg-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Components -->
+      <div class="res-chip" id="chip-comp">
+        <span class="res-icon"><i data-lucide="cpu"></i></span>
+        <div class="res-body">
+          <span class="res-label">COMPONENTS</span>
+          <div class="res-row">
+            <span class="res-value" id="res-comp-val">150</span>
+            <span class="res-delta zero" id="res-comp-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ice -->
+      <div class="res-chip" id="chip-ice">
+        <span class="res-icon"><i data-lucide="snowflake"></i></span>
+        <div class="res-body">
+          <span class="res-label">ICE</span>
+          <div class="res-row">
+            <span class="res-value" id="res-ice-val">100</span>
+            <span class="res-delta zero" id="res-ice-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Oxygen -->
+      <div class="res-chip" id="chip-o2">
+        <span class="res-icon"><i data-lucide="wind"></i></span>
+        <div class="res-body">
+          <span class="res-label">OXYGEN</span>
+          <div class="res-row">
+            <span class="res-value" id="res-o2-val">200</span>
+            <span class="res-delta zero" id="res-o2-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Energy -->
+      <div class="res-chip" id="chip-nrg">
+        <span class="res-icon"><i data-lucide="zap"></i></span>
+        <div class="res-body">
+          <span class="res-label">ENERGY</span>
+          <div class="res-row">
+            <span class="res-value" id="res-nrg-val">0 / 0</span>
+            <span class="res-delta zero" id="res-nrg-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Crew -->
+      <div class="res-chip" id="chip-crew">
+        <span class="res-icon"><i data-lucide="users"></i></span>
+        <div class="res-body">
+          <span class="res-label">CREW</span>
+          <div class="res-row">
+            <span class="res-value" id="res-crew-val">0 / 0</span>
+            <span class="res-delta zero" id="res-crew-delta">(+0)</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Controls on right -->
+    <div class="top-bar-controls">
+      <button id="btn-dev-reveal" class="ghost-btn" style="display:none;">
+        <i data-lucide="map"></i> REVEAL MAP
+      </button>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       MAIN AREA  (canvas + sidebar)
+  ========================================================= -->
+  <div id="main-area">
+
+    <div id="phaser-game">
+      <div id="game-tooltip" class="game-tooltip hidden"></div>
+      <div id="district-badges-layer"></div>
+
+      <div id="time-tracker-ui">
+        <div class="time-header">
+          <span class="time-tag">MISSION PHASE</span>
+          <span class="time-day" id="time-day-label">DAY 01</span>
+        </div>
+        <div class="time-main">
+          <div class="time-icon-wrapper">
+            <i data-lucide="sun" id="time-icon"></i>
+          </div>
+          <span id="time-text">00:00</span>
+        </div>
+        <div class="time-footer">
+          <div class="time-bar-container">
+            <div id="time-bar-fill"></div>
+          </div>
+          <div class="time-actions">
+            <button id="btn-pause" class="time-btn" title="Pause/Play">
+              <i data-lucide="pause" id="ico-pause"></i>
+            </button>
+            <div class="time-speeds">
+              <button class="speed-btn active" data-speed="1">1X</button>
+              <button class="speed-btn" data-speed="2">2X</button>
+              <button class="speed-btn" data-speed="4">4X</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="comms-terminal"></div>
+      <div id="status-icons-layer"></div>
+    </div>
+
+    <div id="mission-alerts-layer">
+      <div id="mission-section">
+        <div id="o2-emergency-warning" class="mission-warning danger blink" style="display:none;">
+          <i data-lucide="alert-triangle"></i> O2 EMERGENCY — EVACUATION IN PROGRESS
+          <div id="evac-countdown"></div>
+        </div>
+        <div id="crew-warning" class="mission-warning danger blink" style="display:none;">
+          <i data-lucide="user-x"></i> PERSONNEL SHORTAGE
+        </div>
+        <div id="blackout-warning" class="mission-warning caution blink" style="display:none;">
+          <i data-lucide="zap-off"></i> BLACKOUT
+        </div>
+        <div id="deadlock-warning" class="mission-warning danger blink" style="display:none;">
+          <i data-lucide="package-x"></i> DEADLOCK IMMINENT
+          <div id="deadlock-countdown"></div>
+        </div>
+        <div id="hazard-log"></div>
+      </div>
+    </div>
+
+    <aside id="ui-sidebar">
+      <div id="context-panel">
+        <div class="ctx-preview-box">
+          <img id="ctx-preview" src="" alt="" />
+        </div>
+
+        <div class="panel-header" style="margin-top: 8px;">
+          <h2 id="ctx-name">— NO SELECTION —</h2>
+        </div>
+
+        <div class="panel-stats" id="ctx-stats"></div>
+        <div class="panel-actions" id="ctx-actions"></div>
+        <div class="panel-warnings" id="ctx-warnings"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        WASD / ARROWS: Camera &nbsp;·&nbsp; LMB: Select Entity<br>
+        RMB / ESC: Cancel Construction &nbsp;·&nbsp; RMB Map: Move Rover
+      </div>
+    </aside>
+
+    <div id="build-preview-tooltip"></div>
+
+  </div><!-- /main-area -->
+
+  <!-- =========================================================
+       OVERLAYS
+  ========================================================= -->
+
+  <div id="game-over-screen">
+    <h1>Mission Failed</h1>
+    <h2 id="game-over-reason"></h2>
+    <button onclick="window.location.reload()">Restart Mission</button>
+  </div>
+
+  <div id="vignette-overlay"></div>
+
+  <!-- Phaser 3 -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.87.0/dist/phaser.min.js"></script>
+
+  <!-- Entry point modulare -->
+  <script type="module" src="src/main.js"></script>
+
+  <!-- Init Lucide icons -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+      if (new URLSearchParams(location.search).has('dev')) {
+        document.getElementById('btn-dev-reveal').style.display = '';
+      }
+    });
+  </script>
+
+</body>
+
+</html>

@@ -80,8 +80,9 @@ export class Rover extends Phaser.GameObjects.Sprite {
     this.setInteractive({ pixelPerfect: true, alphaTolerance: 1 });
     this._updateDepth();
 
-    // --- Charge bar (Graphics separati, seguono il rover) ---
+    // --- Charge bar + Condition bar (Graphics separati, seguono il rover) ---
     this._chargeBar = scene.add.graphics();
+    this._conditionBar = scene.add.graphics();
     this._updateChargeBar();
 
     // --- Tremolio motore continuo ---
@@ -128,6 +129,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
     // Assicurati che la barra di carica segua la nuova profondità
     if (this._chargeBar) {
       this._chargeBar.setDepth(baseDepth + 10);
+      this._conditionBar?.setDepth(baseDepth + 10);
     }
   }
 
@@ -150,30 +152,53 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
   _updateChargeBar() {
     const g = this._chargeBar;
-    const BW = 22; // larghezza totale barra orizzontale
-    const BH = 3;  // altezza barra
-    // Quando spento lo sprite non usa visualYOffset, quindi this.y è già stabile
+    const BW = 22;   // larghezza totale barra
+    const BH = 1.5;  // altezza sottile, come barra costruzione
+    const BORDER = 0.5;
     const stableY = this.isPowered ? this.y - this.visualYOffset : this.y;
 
-    // Stessa logica posizionamento dot edifici: 0.62 della displayHeight dal fondo
-    const midY = stableY - this.displayHeight * 0.62;
+    const midY = stableY - this.displayHeight * 0.55;
     const by = midY - BH / 2;
     const bx = this.x - BW / 2;
 
     g.clear();
 
-    // Sfondo scuro
-    g.fillStyle(0x111111, 0.9);
-    g.fillRect(bx - 1, by - 1, BW + 2, BH + 2);
+    // Bordino nero
+    g.fillStyle(0x000000, 1);
+    g.fillRect(bx - BORDER, by - BORDER, BW + BORDER * 2, BH + BORDER * 2);
 
-    // Riempimento da sinistra a destra
+    // Sfondo nero
+    g.fillStyle(0x000000, 1);
+    g.fillRect(bx, by, BW, BH);
+
+    // Riempimento carica
     const pct = this.charge / ROVER_MAX_CHARGE;
     const color = pct > 0.6 ? 0x22dd66 : pct > 0.3 ? 0xffaa00 : 0xff3300;
-    const fillW = Math.max(0, Math.round(BW * pct));
+    const fillW = Math.max(0, BW * pct);
     g.fillStyle(color, 1);
     g.fillRect(bx, by, fillW, BH);
 
     g.setDepth(this.depth + 10);
+
+    // --- Condition bar (blu, sotto la charge bar) ---
+    const gc = this._conditionBar;
+    const GAP = 2;
+    const cby = by + BH + GAP;
+    gc.clear();
+
+    // Bordino nero
+    gc.fillStyle(0x000000, 1);
+    gc.fillRect(bx - BORDER, cby - BORDER, BW + BORDER * 2, BH + BORDER * 2);
+
+    // Sfondo nero
+    gc.fillStyle(0x000000, 1);
+    gc.fillRect(bx, cby, BW, BH);
+
+    const condPct = (this.durability ?? 100) / 100;
+    const condFillW = Math.max(0, BW * condPct);
+    gc.fillStyle(0x3399ff, 1);
+    gc.fillRect(bx, cby, condFillW, BH);
+    gc.setDepth(this.depth + 10);
 
     // Aggiorna stato visivo (postFX + dot, con cache)
     this._applyVisuals();
@@ -350,6 +375,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
     this.setTint(0x8b4513);
     this.setAlpha(0.9);
     this._chargeBar.setVisible(false);
+    this._conditionBar?.setVisible(false);
 
     // Rendi la casella "occupata" come ostacolo duro
     this.scene.occupiedTiles[this.row][this.col] = true;
@@ -370,6 +396,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
     // Ripristina l'UI
     if (this._chargeBar) this._chargeBar.setVisible(true);
+    this._conditionBar?.setVisible(true);
 
     // Libera la casella della mappa (non è più un ostacolo duro)
     this.scene.occupiedTiles[this.row][this.col] = false;
@@ -389,6 +416,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
     this._shadow?.destroy();
     this._shadow = null;
     this._chargeBar?.destroy();
+    this._conditionBar?.destroy();
 
     super.destroy(fromScene);
   }

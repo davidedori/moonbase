@@ -3784,8 +3784,13 @@ export class MoonbaseScene extends Phaser.Scene {
         const bx = gfx.x - bw / 2;
         const by = gfx.y - (b.type === 'command' || b.type === 'hab_module' ? 50 : 30);
 
-        // Sfondo: Ghost Surface (Bianco spettrale al 10% di opacità)
-        b._loadingBar.fillStyle(0xf0f0fa, 0.1);
+        // Bordino nero
+        const bborder = 0.5;
+        b._loadingBar.fillStyle(0x000000, 1);
+        b._loadingBar.fillRect(bx - bborder, by - bborder, bw + bborder * 2, bh + bborder * 2);
+
+        // Sfondo nero
+        b._loadingBar.fillStyle(0x000000, 1);
         b._loadingBar.fillRect(bx, by, bw, bh);
 
         // Riempimento: Verde vibrante al 80% di opacità per effetto luce

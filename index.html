@@ -103,6 +103,9 @@
       <button id="btn-dev-reveal" class="ghost-btn" style="display:none;">
         <i data-lucide="map"></i> REVEAL MAP
       </button>
+      <button id="btn-dev-meteor" class="ghost-btn" style="display:none;">
+        <i data-lucide="zap"></i> METEOR
+      </button>
     </div>
   </div>
 
@@ -216,6 +219,7 @@
       if (typeof lucide !== 'undefined') lucide.createIcons();
       if (new URLSearchParams(location.search).has('dev')) {
         document.getElementById('btn-dev-reveal').style.display = '';
+        document.getElementById('btn-dev-meteor').style.display = '';
       }
     });
   </script>

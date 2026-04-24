@@ -230,9 +230,7 @@ export class MoonbaseScene extends Phaser.Scene {
           b2 => b2.col === t.col && b2.row === t.row && b2.type === 'conduit'
         );
         if (b) {
-          // FIX: Passiamo 'true' per bloccare l'auto-potatura! 
-          // Si rompe solo la casella colpita, il resto del ramo rimane (anche se disconnesso).
-          this._demolishBuilding(b, true);
+          this._damageConduit(b);
         }
       });
     });
@@ -356,6 +354,10 @@ export class MoonbaseScene extends Phaser.Scene {
     document.getElementById('btn-dev-reveal')
       ?.addEventListener('click', () => this._revealAllMap(), { signal });
 
+    // --- [DEV] Bottone "Trigger Meteoriti" — rimuovere prima del rilascio ---
+    document.getElementById('btn-dev-meteor')
+      ?.addEventListener('click', () => this.economy._triggerMicrometeorites(), { signal });
+
     // --- Centra camera ---
     this._centerCameraOnGrid();
 
@@ -397,6 +399,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
     if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE && this.exploredTiles[row][col]) {
       const building = this.buildings.find(b => b.col === col && b.row === row && b.type !== 'conduit');
+      const damagedConduit = this.buildings.find(b => b.col === col && b.row === row && b.type === 'conduit' && b.isDamaged);
       const rover = this.rovers.find(r => r.col === col && r.row === row);
       const terrain = this.terrainGrid[row][col];
 
@@ -411,6 +414,15 @@ export class MoonbaseScene extends Phaser.Scene {
           rows: [
             { label: "Charge", val: `${rover.charge}/${ROVER_MAX_CHARGE}` },
             { label: "Hull", val: `${Math.round(rover.durability)}%` }
+          ]
+        };
+      } else if (damagedConduit) {
+        tooltipData = {
+          title: "DAMAGED CONDUIT",
+          rows: [
+            { label: "Status", val: "CRITICAL DAMAGE" },
+            { label: "Repair cost", val: "5 REGOLITH" },
+            { label: "Action", val: "Move Rover here to repair" }
           ]
         };
       } else if (building) {
@@ -2348,6 +2360,9 @@ export class MoonbaseScene extends Phaser.Scene {
 
       for (const b of bs) connected.add(b);
 
+      // Un condotto danneggiato non propaga la rete oltre se stesso
+      if (bs.some(b => b.type === 'conduit' && b.isDamaged)) continue;
+
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1], [1, 1], [-1, -1]]) {
         const nk = `${col + dc},${row + dr}`;
         if (!visited.has(nk)) queue.push(nk);
@@ -2568,6 +2583,31 @@ export class MoonbaseScene extends Phaser.Scene {
     }
   }
 
+  _damageConduit(building) {
+    building.isDamaged = true;
+    building._lastVisualState = null;
+    this._updateAdjacentConduitsGraphics(building.col, building.row);
+    this._updateNetworkConnectivity();
+    this._applyBuildingVisuals();
+    this.economy.updateProjections();
+    this.sound.play('sfx-rover-action', { volume: 0.6 });
+  }
+
+  _repairConduit(building) {
+    const info = BUILDINGS_INFO['conduit'];
+    if (this.economy.regolith < (info.cost ?? 0)) {
+      console.warn('Regolite insufficiente per riparare!'); return;
+    }
+    this.economy.regolith -= (info.cost ?? 0);
+    building.isDamaged = false;
+    building._lastVisualState = null;
+    this._updateAdjacentConduitsGraphics(building.col, building.row);
+    this._updateNetworkConnectivity();
+    this.economy.updateProjections();
+    this._applyBuildingVisuals();
+    this.sound.play('sfx-rover-action', { volume: 0.6 });
+  }
+
   /**
    * Elimina automaticamente i condotti che non portano a nulla.
    * Continua a eliminare a catena finché tutti i "vicoli ciechi" sono stati rimossi
@@ -2583,6 +2623,7 @@ export class MoonbaseScene extends Phaser.Scene {
       for (let i = this.buildings.length - 1; i >= 0; i--) {
         const b = this.buildings[i];
         if (b.type !== 'conduit') continue;
+        if (b.isDamaged) continue;
 
         // 1. Verifichiamo che sia un condotto "nudo" (senza edifici solidi o distretti sopra di esso)
         const hasSolidBuilding = this.buildings.some(other => other !== b && other.col === b.col && other.row === b.row);
@@ -2944,10 +2985,20 @@ export class MoonbaseScene extends Phaser.Scene {
 
     // Controlli occupazione
     if (isConduit) {
-      // Il condotto va sotto il Rover: blocca solo se c'è già un edificio "duro" o altro condotto
-      if (this.occupiedTiles[row][col] || existingConduit) {
-        console.warn('Tile già occupata!'); return;
+      if (this.occupiedTiles[row][col]) { console.warn('Tile già occupata!'); return; }
+
+      // Se c'è un condotto danneggiato, il rover può solo ripararlo
+      if (existingConduit?.isDamaged) {
+        if (!this.selectedRover || this.selectedRover.col !== col || this.selectedRover.row !== row) {
+          console.warn('Rover non in posizione per riparare!'); return;
+        }
+        this._repairConduit(existingConduit);
+        return;
       }
+
+      // Condotto integro già presente → blocca costruzione
+      if (existingConduit) { console.warn('Tile già occupata!'); return; }
+
       // Il Rover deve essere esattamente su questa tile
       if (!this.selectedRover || this.selectedRover.col !== col || this.selectedRover.row !== row) {
         console.warn('Rover non in posizione!'); return;
@@ -3432,6 +3483,10 @@ export class MoonbaseScene extends Phaser.Scene {
       }
     }
 
+    const damagedConduitUnderRover = entity?.type === 'rover'
+      ? this.buildings.find(b => b.col === entity.ref.col && b.row === entity.ref.row && b.type === 'conduit' && b.isDamaged)
+      : null;
+
     this.ui.updateContextPanel(entity, {
       regolith: this.economy.regolith,
       components: this.economy.components,
@@ -3445,6 +3500,11 @@ export class MoonbaseScene extends Phaser.Scene {
       buildableTypes,
       clusterBonus,
       districtInfo,
+      damagedConduit: damagedConduitUnderRover,
+      onRepairConduit: damagedConduitUnderRover ? () => {
+        this._repairConduit(damagedConduitUnderRover);
+        this._updateContextPanel();
+      } : null,
       onDemolish: () => {
         if (entity?.type === 'building') {
           this._demolishBuilding(entity.ref);
@@ -3660,6 +3720,7 @@ export class MoonbaseScene extends Phaser.Scene {
    *   'active'  — funzionante
    */
   _getBuildingState(b) {
+    if (b.isDamaged) return 'damaged';
     if (b.isPowered === false) return 'off';
     // Condotti non hanno stato produttivo: sono attivi se connessi, altrimenti standby
     if (b.connected === false) return 'disconnected';
@@ -3736,11 +3797,12 @@ export class MoonbaseScene extends Phaser.Scene {
         // Pulisce eventuali tint applicati in precedenza (solo se l'oggetto lo supporta)
         if (obj.clearTint) obj.clearTint();
 
-        if (state === 'disconnected') {
-          // 1. Applica i filtri di luminosità e scala di grigi tramite FX
+        if (state === 'damaged') {
+          obj.postFX.addColorMatrix().brightness(1.2);
+          if (obj.setTint) obj.setTint(0xff4400);
+        } else if (state === 'disconnected') {
           obj.postFX.addColorMatrix().brightness(0.4).grayscale(0.6);
-          // 2. Applica la tinta rossa scura direttamente sull'oggetto
-          if (obj.setTint) obj.setTint(0xff3333);
+          if (obj.setTint) obj.setTint(0x666666);
         } else if (state !== 'active') {
           obj.postFX.addColorMatrix().brightness(0.5).grayscale(1, true);
         }

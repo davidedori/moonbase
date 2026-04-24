@@ -501,6 +501,34 @@ export class EconomyManager {
     this._triggerRandomEvent();
   }
 
+  _triggerMicrometeorites() {
+    const conduits = this.buildings.filter(b => {
+      if (b.type !== 'conduit') return false;
+      if (b.isConstructing) return false;
+      if (b.isDamaged) return false;
+      const hasBuildingOnTop = this.buildings.some(
+        b2 => b2 !== b && b2.col === b.col && b2.row === b.row && b2.type !== 'conduit'
+      );
+      return !hasBuildingOnTop;
+    });
+    if (conduits.length === 0) return;
+    const pool = [...conduits];
+    const num = Math.min(pool.length, Phaser.Math.Between(1, 2));
+    const targets = [];
+    for (let i = 0; i < num; i++) {
+      const idx = Phaser.Math.Between(0, pool.length - 1);
+      targets.push({ col: pool[idx].col, row: pool[idx].row });
+      pool.splice(idx, 1);
+    }
+    this.stats.hazardEvents++;
+    this.emitter.emit('hazard-event', {
+      type: 'MICROMETEORITES',
+      message: `${ico('layout')} MICROMETEORITE IMPACT — CRITICAL CONDUIT DAMAGE DETECTED.`,
+      duration: 0
+    });
+    this.emitter.emit('hazard-destroy-conduit', { targets });
+  }
+
   _triggerRandomEvent() {
     // Nessun disastro prima del GRACE_PERIOD_DAYS
     if (this.stats.totalDaysElapsed <= 3) return;

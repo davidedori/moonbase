@@ -238,8 +238,25 @@ export class UIManager {
       header.innerText = 'CONSTRUCTION';
       actionsEl.appendChild(header);
 
+      if (opts.damagedConduit) {
+        const repairCost = BUILDINGS_INFO['conduit']?.cost ?? 5;
+        const canAffordRepair = regolith >= repairCost;
+        const repairBtn = document.createElement('button');
+        repairBtn.className = 'ctx-btn';
+        repairBtn.disabled = !powered || !canAffordRepair;
+        let repairError = '';
+        if (!powered) repairError = ' [ROVER OFFLINE]';
+        else if (!canAffordRepair) repairError = ' [INSUFFICIENT RESOURCES]';
+        repairBtn.innerHTML = `
+          <div class="ctx-btn-title">${ico('wrench')} REPAIR CONDUIT</div>
+          <div class="ctx-btn-details">${ico('hexagon')} ${repairCost} REGOLITH<span style="color:var(--red); font-weight:bold;">${repairError}</span></div>
+        `;
+        repairBtn.addEventListener('click', () => opts.onRepairConduit?.());
+        actionsEl.appendChild(repairBtn);
+      }
+
       for (const [type, info] of Object.entries(BUILDINGS_INFO)) {
-        if (type === 'command' || (!info.isDistrictCenter && type !== 'conduit')) continue;
+        if (type === 'command' || type === 'conduit' || !info.isDistrictCenter) continue;
 
         const regOk = (info.cost ?? 0) === 0 || regolith >= (info.cost ?? 0);
         const compOk = (info.costComponents ?? 0) === 0 || components >= (info.costComponents ?? 0);

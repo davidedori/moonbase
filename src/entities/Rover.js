@@ -112,8 +112,8 @@ export class Rover extends Phaser.GameObjects.Sprite {
   // ---------------------------------------------------------------------------
 
   _updateDepth() {
-    // Offset +35000 per pareggiare gli Edifici e stare sopra Nebbia e Drop
-    const baseDepth = (this.y - this.x * 0.001) + 35000;
+    // RIMOSSO il +35000. Ora il rover usa la sua profondità isometrica pura
+    const baseDepth = (this.y - this.x * 0.001);
     this.setDepth(baseDepth);
 
     if (this._shadow) {
@@ -124,6 +124,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
       this._shadow.setDepth(baseDepth - 1);
     }
 
+    // L'UI del rover (barra carica) sta sempre leggermente sopra il rover stesso
     // Assicurati che la barra di carica segua la nuova profondità
     if (this._chargeBar) {
       this._chargeBar.setDepth(baseDepth + 10);

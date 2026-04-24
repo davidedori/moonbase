@@ -283,7 +283,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
     // --- Highlighter (fantasma costruzione) ---
     this.highlighter = this.add.graphics();
-    this.highlighter.setDepth(35000);
+    this.highlighter.setDepth(45000);
     this.roverSelectionGraphics = this.add.graphics();
     this.roverSelectionGraphics.setDepth(0);
     this.buildingSelectionGraphics = this.add.graphics();
@@ -291,7 +291,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
     // --- NUOVO: Path Preview Graphics & Cache ---
     this.pathPreviewGraphics = this.add.graphics();
-    this.pathPreviewGraphics.setDepth(31000);
+    this.pathPreviewGraphics.setDepth(45000);
     this._lastHoverCol = null;
     this._lastHoverRow = null;
     this._lastHoverPath = null;
@@ -1018,7 +1018,10 @@ export class MoonbaseScene extends Phaser.Scene {
             const targetW = Phaser.Math.FloatBetween(scaleMin, scaleMax);
             rock.setDisplaySize(targetW, targetW * rock.height / rock.width);
             rock.setDepth(baseDepth + depth);
-
+            // Link to tile and visibility via Fog of War
+            rock.col = col;
+            rock.row = row;
+            rock.setVisible(this.exploredTiles[rock.row][rock.col]);
             this.terrainProps.push(rock);
           }
         }
@@ -1063,16 +1066,19 @@ export class MoonbaseScene extends Phaser.Scene {
         const baseDepth = row + col - GRID_SIZE * 4;
         const count = d === 0 ? Phaser.Math.Between(2, 4) : d <= 2 ? Phaser.Math.Between(1, 2) : 1;
         for (let k = 0; k < count; k++) {
-          const crater = this.add.image(
-            cx + Phaser.Math.FloatBetween(-TILE_W / 2, TILE_W / 2),
-            cy + Phaser.Math.FloatBetween(-TILE_H / 2, TILE_H / 2),
-            'crater'
-          );
-          const targetW = Phaser.Math.FloatBetween(TILE_W * 0.05, TILE_W * 0.3);
-          crater.setDisplaySize(targetW, targetW * crater.height / crater.width);
-          crater.setDepth(baseDepth + 1);
-
-          this.terrainProps.push(crater);
+        const crater = this.add.image(
+          cx + Phaser.Math.FloatBetween(-TILE_W / 2, TILE_W / 2),
+          cy + Phaser.Math.FloatBetween(-TILE_H / 2, TILE_H / 2),
+          'crater'
+        );
+        const targetW = Phaser.Math.FloatBetween(TILE_W * 0.05, TILE_W * 0.3);
+        crater.setDisplaySize(targetW, targetW * crater.height / crater.width);
+        crater.setDepth(baseDepth + 1);
+        // Link to tile and visibility via Fog of War
+        crater.col = col;
+        crater.row = row;
+        crater.setVisible(this.exploredTiles[crater.row][crater.col]);
+        this.terrainProps.push(crater);
         }
       }
     }
@@ -1089,12 +1095,16 @@ export class MoonbaseScene extends Phaser.Scene {
         const { x: cx, y: cy } = cartesianToIsometric(col, row);
         const sprite = this.add.image(cx, cy, 'ridge');
         sprite.setDisplaySize(TILE_W * 1.1, TILE_W * 1.1 * (sprite.height / sprite.width));
+        // Depth isometrico per la cresta
         sprite.setDepth(cy - cx * 0.001);
-
-        // --- AGGIUNTA FOW: Maschera lo sprite della montagna ---
-        sprite.setMask(this.fowMask);
-        // -----------------------------------------------------
-
+        // Rimuoviamo mask FoW per prestazioni, gestiamo visibilità manuale
+        // sprite.setMask(this.fowMask);
+        
+        // Agganciamento visibilità in base a Fog of War
+        sprite.col = col;
+        sprite.row = row;
+        sprite.setVisible(this.exploredTiles[row][col]);
+        
         this.terrainProps.push(sprite);
       }
     }
@@ -1147,6 +1157,11 @@ export class MoonbaseScene extends Phaser.Scene {
 
           // 3. Inseriamo il testo in un Container posizionato alle coordinate corrette
           const container = this.add.container(cx, cy - 10, [label]);
+          // === AGGIUNTA: Gestione visibilità ===
+          container.col = Math.floor(centerCol);
+          container.row = Math.floor(centerRow);
+          container.setVisible(this.exploredTiles[container.row][container.col]);
+          this.terrainProps.push(container);
 
           // 4. Scaliamo il Container!
           // Moltiplicando la scala Y per 0.5 su un oggetto ruotato di 45°, 
@@ -1163,7 +1178,6 @@ export class MoonbaseScene extends Phaser.Scene {
           }
 
           container.setDepth(maxFrontalDepth + 10);
-          container.setMask(this.fowMask);
         }
       }
     }
@@ -1213,14 +1227,18 @@ export class MoonbaseScene extends Phaser.Scene {
 
         // 3. Inseriamo il testo nel Container posizionato sopra il cratere
         const container = this.add.container(x, y - 10, [textLabel]);
+        // === AGGIUNTA: Gestione visibilità ===
+        container.col = Math.floor(centerCol);
+        container.row = Math.floor(centerRow);
+        container.setVisible(this.exploredTiles[container.row][container.col]);
+        this.terrainProps.push(container);
 
         // 4. Schiacciamento verticale del 50% sul container per creare lo skew isometrico perfetto
         const baseScale = 0.25;
         container.setScale(baseScale, baseScale * 0.5);
 
-        // 5. Z-sorting e Maschera Fog of War applicati al Container
+        // 5. Z-sorting (Maschera FoW rimosso per performance) e visibilità gestita via setVisible
         container.setDepth(sprite.depth + 0.1);
-        container.setMask(this.fowMask);
         // ---------------------------------------------------------------
       }
     }
@@ -1346,7 +1364,7 @@ export class MoonbaseScene extends Phaser.Scene {
           fogGfx.fillPath();
         }
 
-        fogGfx.setDepth(30000);
+        fogGfx.setDepth(cy - cx * 0.001 + 0.1); // Appena sopra il pavimento (depth isometrico)
         this.fogGraphics[row][col] = fogGfx;
       }
     }
@@ -1394,10 +1412,9 @@ export class MoonbaseScene extends Phaser.Scene {
     // Un'alpha alta (0.9) renderà il buco quasi totalmente trasparente
     eraser.setAlpha(1);
 
-    // Gestione profondità: deve essere coerente con i fogGraphics
-    // (Presumo che i tuoi fogGraphics abbiano una profondità simile)
+    // Depth is isometric-based to align erasers with FoW under terrain
     const fogDepth = cy - cx * 0.001;
-    eraser.setDepth(fogDepth + 0.1);
+    eraser.setDepth(fogDepth + 0.2);
 
     this.fogEdgeMasks[row][col] = eraser;
   }
@@ -1439,7 +1456,9 @@ export class MoonbaseScene extends Phaser.Scene {
         eraser.setScale(baseScale * Phaser.Math.FloatBetween(1.4, 1.6));
         eraser.setBlendMode(Phaser.BlendModes.ERASE);
         eraser.setAlpha(1);
-        eraser.setDepth(borderDepth + 0.1);
+        // Depth aligned with isometric terrain + small offset
+        const erDepth = cy - cx * 0.001;
+        eraser.setDepth(erDepth + 0.2);
         this.mapEdgeMasks[row][col] = eraser;
       }
     }
@@ -1505,6 +1524,18 @@ export class MoonbaseScene extends Phaser.Scene {
         this.exploredTiles[r][c] = true;
         this.fogGraphics[r]?.[c]?.clear();
         revealed.push([r, c]);
+        // === NUOVO: Rivela ostacoli, rocce e testi nascosti ===
+        for (const prop of this.terrainProps) {
+          if (prop.col === c && prop.row === r) {
+            prop.setVisible(true);
+          }
+        }
+        // === NUOVO: Rivela Supply Drops o Wrecks ===
+        for (const poi of this.pois) {
+          if (poi.col === c && poi.row === r) {
+            poi.sprite.setVisible(true);
+          }
+        }
       }
     }
     // Aggiorna bordi: tile rivelati + 2 anelli (serve per dist-2 alpha)
@@ -3140,12 +3171,7 @@ export class MoonbaseScene extends Phaser.Scene {
     const placed = this.buildings[this.buildings.length - 1];
     placed._shadow = shadow ?? null;
 
-    // Alza gli edifici solidi SOPRA la Nebbia (30k) e SOPRA i Drop (32k)
-    if (type !== 'conduit') {
-      const depthOffset = 35000;
-      if (gfx.setDepth) gfx.setDepth(gfx.depth + depthOffset);
-      if (shadow) shadow.setDepth(shadow.depth + depthOffset);
-    }
+    // Rimuovere offset di depth globale: rover/edifici now hanno depth locali isometrici
 
     // Attacca handler pixel-perfect sullo sprite (se presente)
     this._attachBuildingPointerdown(placed);
@@ -3689,7 +3715,7 @@ export class MoonbaseScene extends Phaser.Scene {
         }
 
         // --- DISEGNO BARRA (Stile SpaceX: Nero + Bordo Bianco) ---
-        if (!b._loadingBar) b._loadingBar = this.add.graphics().setDepth(20002);
+        if (!b._loadingBar) b._loadingBar = this.add.graphics().setDepth(45000);
         b._loadingBar.clear();
 
         const bw = TILE_W * 0.5; // Più corta e discreta
@@ -3762,7 +3788,7 @@ export class MoonbaseScene extends Phaser.Scene {
    */
   _createSelectionIndicatorGfx() {
     const gfx = this.add.graphics();
-    gfx.setDepth(20000);
+    gfx.setDepth(46000);
     gfx.setVisible(false);
     return gfx;
   }
@@ -4387,7 +4413,7 @@ export class MoonbaseScene extends Phaser.Scene {
       color: isPositive ? '#f0f0fa' : '#f85149',
       fontStyle: 'bold',
       resolution: 2 // Fondamentale per la nitidezza su schermi HiDPI
-    }).setOrigin(0.5).setDepth(20000);
+    }).setOrigin(0.5).setDepth(46000);
 
     // Animazione più rapida e "snappy"
     this.tweens.add({
@@ -4440,6 +4466,10 @@ export class MoonbaseScene extends Phaser.Scene {
         const poiImg = this.add.image(x, y, 'artemis-wreck');
         poiImg.setDisplaySize(TILE_W * 0.7, TILE_W * 0.7 * (poiImg.height / poiImg.width));
         poiImg.setDepth(y - x * 0.001);
+        // Attach world coordinates for visibility control
+        poiImg.col = col; // adattare se necessario al centro
+        poiImg.row = row;
+        poiImg.setVisible(this.exploredTiles[poiImg.row][poiImg.col]);
         this.pois.push({ type: 'wreck', col, row, sprite: poiImg, reward: 50 });
       }
     }

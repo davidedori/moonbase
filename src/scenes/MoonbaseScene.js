@@ -4020,29 +4020,29 @@ export class MoonbaseScene extends Phaser.Scene {
           b._lastVisualState = 'constructing'; // Invalida stato normale
         }
 
-        // --- DISEGNO BARRA (Stile SpaceX: Nero + Bordo Bianco) ---
+        // --- BARRA COSTRUZIONE (stile ghost-glass, unificato con CSS UI) ---
         if (!b._loadingBar) b._loadingBar = this.add.graphics().setDepth(45000);
         b._loadingBar.clear();
 
-        const bw = TILE_W * 0.5; // Più corta e discreta
-        const bh = 1.5;           // Spessore HUD ultra-sottile
+        const bw = TILE_W * 0.5;
+        const bh = 1.5;
         const bx = gfx.x - bw / 2;
         const by = gfx.y - (b.type === 'command' || b.type === 'hab_module' ? 50 : 30);
+        const br = 1;
 
-        // Bordino nero
-        const bborder = 0.5;
+        // Bordo nero
         b._loadingBar.fillStyle(0x000000, 1);
-        b._loadingBar.fillRect(bx - bborder, by - bborder, bw + bborder * 2, bh + bborder * 2);
+        b._loadingBar.fillRoundedRect(bx - 0.5, by - 0.5, bw + 1, bh + 1, br);
 
-        // Sfondo nero
-        b._loadingBar.fillStyle(0x000000, 1);
-        b._loadingBar.fillRect(bx, by, bw, bh);
+        // Track quasi-nero
+        b._loadingBar.fillStyle(0x000000, 0.75);
+        b._loadingBar.fillRoundedRect(bx, by, bw, bh, br);
 
-        // Riempimento: Verde vibrante al 80% di opacità per effetto luce
+        // Fill: verde CSS --green
         const progress = b.buildProgress || 0;
         if (progress > 0) {
-          b._loadingBar.fillStyle(0x33ff66, 0.8);
-          b._loadingBar.fillRect(bx, by, bw * progress, bh);
+          b._loadingBar.fillStyle(0x3fc864, 1);
+          b._loadingBar.fillRoundedRect(bx, by, bw * progress, bh, br);
         }
 
         // Salta il resto del processing visuale normale mentre si costruisce

@@ -163,9 +163,9 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
   _updateChargeBar() {
     const g = this._chargeBar;
-    const BW = 22;   // larghezza totale barra
-    const BH = 1.5;  // altezza sottile, come barra costruzione
-    const BORDER = 0.5;
+    const BW = 22;
+    const BH = 1.5;
+    const R = 1;
     const stableY = this.isPowered ? this.y - this.visualYOffset : this.y;
 
     const midY = stableY - this.displayHeight * 0.55;
@@ -174,41 +174,42 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
     g.clear();
 
-    // Bordino nero
+    // Bordo nero
     g.fillStyle(0x000000, 1);
-    g.fillRect(bx - BORDER, by - BORDER, BW + BORDER * 2, BH + BORDER * 2);
+    g.fillRoundedRect(bx - 0.5, by - 0.5, BW + 1, BH + 1, R);
 
-    // Sfondo nero
-    g.fillStyle(0x000000, 1);
-    g.fillRect(bx, by, BW, BH);
+    // Track quasi-nero
+    g.fillStyle(0x000000, 0.75);
+    g.fillRoundedRect(bx, by, BW, BH, R);
 
-    // Riempimento carica
+    // Fill carica — palette CSS (--green / --yellow / --red)
     const pct = this.charge / ROVER_MAX_CHARGE;
-    const color = pct > 0.6 ? 0x22dd66 : pct > 0.3 ? 0xffaa00 : 0xff3300;
+    const color = pct > 0.6 ? 0x3fc864 : pct > 0.3 ? 0xd2a532 : 0xf85149;
     const fillW = Math.max(0, BW * pct);
     g.fillStyle(color, 1);
-    g.fillRect(bx, by, fillW, BH);
+    g.fillRoundedRect(bx, by, fillW, BH, R);
 
     g.setDepth(this.depth + 10);
 
-    // --- Condition bar (blu, sotto la charge bar) ---
+    // --- Barra integrità (sotto) ---
     const gc = this._conditionBar;
     const GAP = 2;
     const cby = by + BH + GAP;
     gc.clear();
 
-    // Bordino nero
+    // Bordo nero
     gc.fillStyle(0x000000, 1);
-    gc.fillRect(bx - BORDER, cby - BORDER, BW + BORDER * 2, BH + BORDER * 2);
+    gc.fillRoundedRect(bx - 0.5, cby - 0.5, BW + 1, BH + 1, R);
 
-    // Sfondo nero
-    gc.fillStyle(0x000000, 1);
-    gc.fillRect(bx, cby, BW, BH);
+    // Track quasi-nero
+    gc.fillStyle(0x000000, 0.75);
+    gc.fillRoundedRect(bx, cby, BW, BH, R);
 
+    // Fill integrità — CSS --col-o2
     const condPct = (this.durability ?? 100) / 100;
     const condFillW = Math.max(0, BW * condPct);
-    gc.fillStyle(0x3399ff, 1);
-    gc.fillRect(bx, cby, condFillW, BH);
+    gc.fillStyle(0x58a6ff, 1);
+    gc.fillRoundedRect(bx, cby, condFillW, BH, R);
     gc.setDepth(this.depth + 10);
 
     // Aggiorna stato visivo (postFX + dot, con cache)

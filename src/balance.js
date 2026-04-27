@@ -41,7 +41,7 @@ export const EXTENDED_ECLIPSE_MULT = 2;        // notte più lunga del normale
 export const DISTRICT_MODULE_NEIGHBOR_GAP = 1; // gap minimo tra moduli di distretti diversi (1 = nessuna adiacenza 8-dir)
 
 // === ROVER ===
-export const ROVER_COST = 75;   // costo in componenti
+export const ROVER_COST = 25;   // costo in componenti
 export const ROVER_COST_TYPE = 'components';
 export const ROVER_MAX_CHARGE = 10;   // caselle di autonomia
 export const ROVER_TICKS_PER_CHARGE = 1;          // (legacy, non usato) tick fermi per ricaricare 1 casella

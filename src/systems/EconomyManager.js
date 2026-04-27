@@ -727,8 +727,14 @@ export class EconomyManager {
           this.crewEmployed += cCost;
 
           if (conv) {
-            if (conv.inputRes === 'regolith') simRegolith -= conv.inputCost;
-            if (conv.inputRes === 'ice') simIce -= conv.inputCost;
+            if (conv.inputRes === 'regolith') {
+              simRegolith -= conv.inputCost;
+              this.deltaReg -= conv.inputCost;
+            }
+            if (conv.inputRes === 'ice') {
+              simIce -= conv.inputCost;
+              this.deltaIce -= conv.inputCost;
+            }
           }
 
           let outputAmount = conv ? conv.outputAmount : (info.regolithGen || info.iceGen || 0);

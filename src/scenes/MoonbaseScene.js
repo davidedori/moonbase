@@ -2082,6 +2082,8 @@ export class MoonbaseScene extends Phaser.Scene {
           const or2 = startRow + dr + ndr;
           if (Math.abs(oc - startCol) <= 1 && Math.abs(or2 - startRow) <= 1) continue;
           if (oc < 0 || oc >= GRID_SIZE || or2 < 0 || or2 >= GRID_SIZE) continue;
+          const _exitTerrain = this.terrainGrid[or2]?.[oc];
+          if (_exitTerrain === 'crater' || _exitTerrain === 'ridge') continue;
           const ok = key(oc, or2);
           if (!costMap.has(ok) || costMap.get(ok) > moveCost) {
             costMap.set(ok, moveCost);
@@ -2177,6 +2179,8 @@ export class MoonbaseScene extends Phaser.Scene {
         const stepR = cr < toR ? 1 : cr > toR ? -1 : 0;
         cc += stepC;
         cr += stepR;
+        const _et = this.terrainGrid[cr]?.[cc];
+        if (_et === 'crater' || _et === 'ridge') break;
         if (!this.occupiedTiles[cr][cc]) path.push([cc, cr]);
       }
     };
@@ -2717,6 +2721,30 @@ export class MoonbaseScene extends Phaser.Scene {
 
       // Abbassiamo il flag
       this._isUndoingNetwork = false;
+
+      // Elimina il condotto rimasto sotto il modulo appena demolito, a meno che
+      // non sia un ponte di rete (rimuoverlo disconnetterebbe altri edifici).
+      if (building.type !== 'conduit') {
+        const underConduit = this.buildings.find(
+          b => b.type === 'conduit' && b.col === col && b.row === row && !b.isDamaged
+        );
+        if (underConduit) {
+          const prevConnected = new Set(this.buildings.filter(b => b.connected));
+          const ucIdx = this.buildings.indexOf(underConduit);
+          this.buildings.splice(ucIdx, 1);
+          this._updateNetworkConnectivity();
+          const isNeeded = [...prevConnected].some(
+            b => this.buildings.includes(b) && !b.connected
+          );
+          // Ripristina sempre il condotto nell'array prima di decidere cosa fare
+          this.buildings.splice(ucIdx, 0, underConduit);
+          this._updateNetworkConnectivity();
+          if (!isNeeded) {
+            this._demolishBuilding(underConduit, true);
+            this._pruneDeadEndConduits();
+          }
+        }
+      }
     }
   }
 

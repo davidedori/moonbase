@@ -532,20 +532,55 @@ export class UIManager {
       deadlockTime = 0
     } = data;
 
-    this._setChip('res-reg-val', 'res-reg-delta', regolith, deltaReg);
-    this._setChip('res-comp-val', 'res-comp-delta', components, deltaComp ?? 0);
-    this._setChip('res-ice-val', 'res-ice-delta', ice, deltaIce);
+    // Regolith: NET (grande) & TOTAL (piccolo)
+    const regValEl = document.getElementById('res-reg-val');
+    const regDeltaEl = document.getElementById('res-reg-delta');
+    if (regValEl) {
+      const sign = deltaReg >= 0 ? '+' : '';
+      regValEl.innerText = `${sign}${Math.round(deltaReg)}`;
+      regValEl.style.color = deltaReg < 0 ? 'var(--red)' : 'var(--white)';
+    }
+    if (regDeltaEl) {
+      regDeltaEl.innerText = `${Math.round(regolith)}`;
+      regDeltaEl.className = 'res-delta zero';
+    }
 
-    // --- LOGICA OXYGEN: NET & STORAGE BAR ---
-    const o2NetEl = document.getElementById('res-o2-net');
+    // Components: NET (grande) & TOTAL (piccolo)
+    const compValEl = document.getElementById('res-comp-val');
+    const compDeltaEl = document.getElementById('res-comp-delta');
+    const deltaCompVal = deltaComp ?? 0;
+    if (compValEl) {
+      const sign = deltaCompVal >= 0 ? '+' : '';
+      compValEl.innerText = `${sign}${Math.round(deltaCompVal)}`;
+      compValEl.style.color = deltaCompVal < 0 ? 'var(--red)' : 'var(--white)';
+    }
+    if (compDeltaEl) {
+      compDeltaEl.innerText = `${Math.round(components)}`;
+      compDeltaEl.className = 'res-delta zero';
+    }
+
+    // Ice: NET (grande) & TOTAL (piccolo)
+    const iceValEl = document.getElementById('res-ice-val');
+    const iceDeltaEl = document.getElementById('res-ice-delta');
+    if (iceValEl) {
+      const sign = deltaIce >= 0 ? '+' : '';
+      iceValEl.innerText = `${sign}${Math.round(deltaIce)}`;
+      iceValEl.style.color = deltaIce < 0 ? 'var(--red)' : 'var(--white)';
+    }
+    if (iceDeltaEl) {
+      iceDeltaEl.innerText = `${Math.round(ice)}`;
+      iceDeltaEl.className = 'res-delta zero';
+    }
+
+    // --- LOGICA OXYGEN: NET (grande) & STORAGE BAR ---
+    const o2ValEl = document.getElementById('res-o2-val');
     const o2StorageEl = document.getElementById('res-o2-storage');
     const o2BarEl = document.getElementById('res-o2-bar');
 
-    if (o2NetEl) {
+    if (o2ValEl) {
       const signO2 = deltaO2 >= 0 ? '+' : '';
-      o2NetEl.innerText = `${signO2}${Math.round(deltaO2)}`;
-      // Puoi usare i colori rosso/bianco sulla scritta principale per far capire subito se la produzione è in calo
-      o2NetEl.style.color = deltaO2 < 0 ? 'var(--red)' : 'var(--white)'; 
+      o2ValEl.innerText = `${signO2}${Math.round(deltaO2)}`;
+      o2ValEl.style.color = deltaO2 < 0 ? 'var(--red)' : 'var(--white)';
     }
     if (o2StorageEl && o2BarEl) {
       o2StorageEl.innerText = `${Math.round(oxygen)} / ${maxOxygen}`;
@@ -553,15 +588,15 @@ export class UIManager {
       o2BarEl.style.width = `${o2Pct}%`;
     }
 
-    // --- LOGICA ENERGY: NET & STORAGE BAR ---
-    const nrgNetEl = document.getElementById('res-nrg-net');
+    // --- LOGICA ENERGY: NET (grande) & STORAGE BAR ---
+    const nrgValEl = document.getElementById('res-nrg-val');
     const nrgStorageEl = document.getElementById('res-nrg-storage');
     const nrgBarEl = document.getElementById('res-nrg-bar');
 
-    if (nrgNetEl) {
+    if (nrgValEl) {
       const signNrg = deltaEnergy >= 0 ? '+' : '';
-      nrgNetEl.innerText = `${signNrg}${Math.round(deltaEnergy)}`;
-      nrgNetEl.style.color = deltaEnergy < 0 ? 'var(--red)' : 'var(--white)';
+      nrgValEl.innerText = `${signNrg}${Math.round(deltaEnergy)}`;
+      nrgValEl.style.color = deltaEnergy < 0 ? 'var(--red)' : 'var(--white)';
     }
     if (nrgStorageEl && nrgBarEl) {
       nrgStorageEl.innerText = `${Math.round(energyStored)} / ${maxEnergy}`;
@@ -576,11 +611,12 @@ export class UIManager {
     if (blackoutEl) blackoutEl.style.display = isBlackout ? 'block' : 'none';
 
     const crewFree = crewTotal - crewEmployed;
-    const crewNetEl = document.getElementById('res-crew-net');
-    if (crewNetEl) {
-      crewNetEl.innerText = `${crewTotal}`;
-      crewNetEl.style.color = crewFree <= 0 ? 'var(--red)' : 'var(--white)';
+    const crewValEl = document.getElementById('res-crew-val');
+    if (crewValEl) {
+      crewValEl.innerText = `${crewFree}`;
+      crewValEl.style.color = crewFree <= 0 ? 'var(--red)' : 'var(--white)';
     }
+
     const crewBarEl = document.getElementById('res-crew-bar');
     if (crewBarEl) crewBarEl.style.width = crewTotal > 0 ? `${Math.min(100, (crewFree / crewTotal) * 100)}%` : '0%';
     const crewStorageEl = document.getElementById('res-crew-storage');

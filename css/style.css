@@ -227,7 +227,8 @@ body {
   background: var(--ghost-bg-active);
 }
 
-#btn-pause.active {
+#btn-pause.active,
+#btn-resource-lens.active {
   border-color: var(--green);
   color: var(--green);
 }

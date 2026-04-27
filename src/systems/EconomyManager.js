@@ -14,6 +14,17 @@
 // =============================================================================
 
 import { BUILDINGS_INFO, DAY_DURATION_MS, NIGHT_DURATION_MS, GRACE_PERIOD_DAYS, ROVER_MAX_CHARGE } from '../constants.js';
+import {
+  INITIAL_REGOLITH, INITIAL_ICE, INITIAL_OXYGEN, INITIAL_COMPONENTS,
+  INITIAL_MAX_OXYGEN, INITIAL_MAX_ROVERS,
+  ECONOMY_TICK_MS,
+  EMERGENCY_TIMER_INCREMENT, EMERGENCY_MAX_TIME,
+  DEADLOCK_TIMER_INCREMENT, DEADLOCK_MAX_TIME, CREW_PENALTY_INTERVAL,
+  HAZARD_PROBABILITY, SOLAR_FLARE_ROLL_MAX, MICROMETEORITE_ROLL_MAX,
+  SOLAR_FLARE_ENERGY_MULT, SOLAR_FLARE_TICKS,
+  EXTENDED_ECLIPSE_MULT,
+  ROVER_WORKSHOP_BONUS_ROVERS, COMMAND_CREW_GEN,
+} from '../balance.js';
 
 export class EconomyManager {
   /**
@@ -25,10 +36,10 @@ export class EconomyManager {
     this._scene = scene;
 
     // --- Risorse ---
-    this.regolith = 600; // Alzato da 500
-    this.ice = 100;
-    this.oxygen = 200;
-    this.components = 150; // Alzato da 100
+    this.regolith = INITIAL_REGOLITH;
+    this.ice = INITIAL_ICE;
+    this.oxygen = INITIAL_OXYGEN;
+    this.components = INITIAL_COMPONENTS;
 
     // --- Energia ---
     this.energyProduced = 0;
@@ -40,8 +51,8 @@ export class EconomyManager {
     // --- Equipaggio ---
     this.crewTotal = 0;
     this.crewEmployed = 0;
-    this.maxOxygen = 200;
-    this.maxRovers = 1; // FIX: Base 1 per non restare bloccati
+    this.maxOxygen = INITIAL_MAX_OXYGEN;
+    this.maxRovers = INITIAL_MAX_ROVERS;
 
 
     // --- Stato di gioco ---
@@ -169,7 +180,7 @@ export class EconomyManager {
   startEconomyLoop() {
     if (this._economyEvent) this._economyEvent.remove();
     this._economyEvent = this._scene.time.addEvent({
-      delay: 20000,
+      delay: ECONOMY_TICK_MS,
       callback: () => {
         this.processEconomyTick();
         this.emitter.emit('economy-tick-complete');
@@ -211,7 +222,7 @@ export class EconomyManager {
 
     // Sprint 3: Solar Flare effect
     if (this._solarFlareTicksRemaining > 0) {
-      this.energyProduced *= 2;
+      this.energyProduced *= SOLAR_FLARE_ENERGY_MULT;
     }
 
     // -------------------------------------------------------------------------
@@ -244,7 +255,7 @@ export class EconomyManager {
       b._lackingEnergy = false;
       if (b.type === 'command') {
         active = true;
-        this.crewTotal += 5;
+        this.crewTotal += COMMAND_CREW_GEN;
       } else {
         const energyCost = BUILDINGS_INFO.hab_module.energyCons;
         if (energyPool >= energyCost) {
@@ -263,7 +274,7 @@ export class EconomyManager {
     }
     this.oxygen -= totalO2HabCons;
 
-    const crewPenalty = Math.floor(this.emergencyTimer / 5);
+    const crewPenalty = Math.floor(this.emergencyTimer / CREW_PENALTY_INTERVAL);
     this.crewTotal = Math.max(0, this.crewTotal - crewPenalty);
 
     // --- Impianti industriali ---
@@ -364,12 +375,7 @@ export class EconomyManager {
 
     // --- Rover ---
     for (const r of this.rovers) {
-      // Ricarica: fermo + giorno (acceso o spento), 1 carica per tick
-      if (!r.isWreck && !r.moving && this.isDay) {
-        r.charge = Math.min(ROVER_MAX_CHARGE, r.charge + 1);
-        r._updateChargeBar();
-      }
-
+      // (ricarica gestita da timer indipendente nel Rover)
       if (!r.isPowered || this._solarFlareTicksRemaining > 0) {
         r.hasCrew = false;
         if (r._moveTween && r._moveTween.isPlaying()) r.pauseMovement();
@@ -391,18 +397,18 @@ export class EconomyManager {
 
 
     // --- Ricalcolo Hard Caps (Post-Consumo) ---
-    this.maxOxygen = 200;
+    this.maxOxygen = INITIAL_MAX_OXYGEN;
     this.maxEnergy = 0;
-    this.maxRovers = 1; // Base garantita (Comando)
+    this.maxRovers = INITIAL_MAX_ROVERS;
 
     for (const b of this.buildings) {
       // Contiamo solo edifici attivi e alimentati (non in standby energetico)
       if (b.connected === false || b.isConstructing) continue;
 
-      if (b.type === 'h2o_tank') this.maxOxygen += (BUILDINGS_INFO.h2o_tank.o2CapBonus || 300);
-      if (b.type === 'battery_bank') this.maxEnergy += (BUILDINGS_INFO.battery_bank.energyCapBonus || 100);
+      if (b.type === 'h2o_tank') this.maxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
+      if (b.type === 'battery_bank') this.maxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
       // Il Workshop fornisce rover extra SOLO se è alimentato (_econActive)
-      if (b.type === 'rover_workshop' && b._econActive) this.maxRovers += 2;
+      if (b.type === 'rover_workshop' && b._econActive) this.maxRovers += ROVER_WORKSHOP_BONUS_ROVERS;
     }
 
     // --- Gestione Ibernazione/Risveglio Rover (Triage) ---
@@ -446,10 +452,10 @@ export class EconomyManager {
 
     // Emergenze
     if (this.oxygen <= 0) {
-      this.emergencyTimer += 10;
-      const evacTime = 180 - this.emergencyTimer;
+      this.emergencyTimer += EMERGENCY_TIMER_INCREMENT;
+      const evacTime = EMERGENCY_MAX_TIME - this.emergencyTimer;
       this.stats.o2EmergencyTicks++;
-      if (this.emergencyTimer >= 180) {
+      if (this.emergencyTimer >= EMERGENCY_MAX_TIME) {
         this.emitter.emit('game-over', { reason: 'Life Support Degraded' });
         return;
       }
@@ -466,8 +472,8 @@ export class EconomyManager {
     // FIX: Game Over ignora i relitti
     const activeRoversCount = this.rovers.filter(r => !r.isWreck).length;
     if (this.regolith === 0 && !hasActiveRegExtractor && activeRoversCount === 0) {
-      this.deadlockTimer += 10;
-      if (this.deadlockTimer >= 180) {
+      this.deadlockTimer += DEADLOCK_TIMER_INCREMENT;
+      if (this.deadlockTimer >= DEADLOCK_MAX_TIME) {
         this.emitter.emit('game-over', { reason: 'Critical Resource Depletion' });
         return;
       }
@@ -494,7 +500,7 @@ export class EconomyManager {
       deltaComp: this.deltaComp,
       deltaEnergy: this.deltaEnergy,
       deadlockActive: this.deadlockTimer > 0,
-      deadlockTime: 180 - this.deadlockTimer,
+      deadlockTime: DEADLOCK_MAX_TIME - this.deadlockTimer,
       stats: this.stats,
     });
 
@@ -513,7 +519,7 @@ export class EconomyManager {
     });
     if (conduits.length === 0) return;
     const pool = [...conduits];
-    const num = Math.min(pool.length, Phaser.Math.Between(1, 2));
+    const num = 1;
     const targets = [];
     for (let i = 0; i < num; i++) {
       const idx = Phaser.Math.Between(0, pool.length - 1);
@@ -531,22 +537,22 @@ export class EconomyManager {
 
   _triggerRandomEvent() {
     // Nessun disastro prima del GRACE_PERIOD_DAYS
-    if (this.stats.totalDaysElapsed <= 3) return;
+    if (this.stats.totalDaysElapsed <= GRACE_PERIOD_DAYS) return;
 
-    if (Math.random() > 0.02) return; // 2% chance per tick (ridotto per bilanciare il ritmo)
+    if (Math.random() > HAZARD_PROBABILITY) return;
 
     const roll = Math.random();
     this.stats.hazardEvents++;
 
-    if (roll < 0.33) {
+    if (roll < SOLAR_FLARE_ROLL_MAX) {
       // SOLAR FLARE
-      this._solarFlareTicksRemaining = 3;
+      this._solarFlareTicksRemaining = SOLAR_FLARE_TICKS;
       this.emitter.emit('hazard-event', {
         type: 'SOLAR FLARE',
         message: `${ico('sun')} SOLAR FLARE DETECTED — PHOTOVOLTAIC SURGE: 2X OUTPUT. ROVER SYSTEMS OFFLINE FOR 30S.`,
         duration: 30
       });
-    } else if (roll < 0.66) {
+    } else if (roll < MICROMETEORITE_ROLL_MAX) {
       // MICROMETEORITES — only target standalone conduits not linked to
       // buildings under construction and not supporting a module on top
       const conduits = this.buildings.filter(b => {
@@ -568,7 +574,7 @@ export class EconomyManager {
       });
       if (conduits.length > 0) {
         const targets = [];
-        const num = Math.min(conduits.length, Phaser.Math.Between(1, 2));
+        const num = 1;
         for (let i = 0; i < num; i++) {
           const idx = Phaser.Math.Between(0, conduits.length - 1);
           const c = conduits.splice(idx, 1)[0];
@@ -583,7 +589,7 @@ export class EconomyManager {
       }
     } else {
       // EXTENDED ECLIPSE
-      this._extendedEclipseMultiplier = 2;
+      this._extendedEclipseMultiplier = EXTENDED_ECLIPSE_MULT;
       this.emitter.emit('hazard-event', {
         type: 'EXTENDED ECLIPSE',
         message: `${ico('moon')} ORBITAL SHADOW EXTENSION — NEXT NIGHT CYCLE DURATION DOUBLED.`,
@@ -600,22 +606,22 @@ export class EconomyManager {
     let simRegolith = this.regolith;
     let simIce = this.ice;
 
-    let simMaxOxygen = 200;
+    let simMaxOxygen = INITIAL_MAX_OXYGEN;
     let simMaxEnergy = 0;
-    let simMaxRovers = 1;
+    let simMaxRovers = INITIAL_MAX_ROVERS;
 
     // 1. Hard Caps Statici
     for (const b of this.buildings) {
       if (b.connected === false || b.isConstructing) continue;
       if (BUILDINGS_INFO[b.type]?.isDistrictCenter) b._econActive = true;
 
-      if (b.type === 'h2o_tank') simMaxOxygen += (BUILDINGS_INFO.h2o_tank.o2CapBonus || 300);
-      if (b.type === 'battery_bank') simMaxEnergy += (BUILDINGS_INFO.battery_bank.energyCapBonus || 100);
+      if (b.type === 'h2o_tank') simMaxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
+      if (b.type === 'battery_bank') simMaxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
     }
 
     // 2. Generatori
     this.energyProduced = 0;
-    const flareMult = this._solarFlareTicksRemaining > 0 ? 2 : 1;
+    const flareMult = this._solarFlareTicksRemaining > 0 ? SOLAR_FLARE_ENERGY_MULT : 1;
     for (const b of this.buildings) {
       if (b.connected === false || b.isPowered === false || b.isConstructing) continue;
       b._lackingEnergy = false; b._lackingCrew = false;
@@ -646,7 +652,7 @@ export class EconomyManager {
       let active = false;
       if (b.type === 'command') {
         active = true;
-        this.crewTotal += 5;
+        this.crewTotal += COMMAND_CREW_GEN;
       } else {
         const cost = BUILDINGS_INFO.hab_module.energyCons;
         if (simEnergyPool >= cost) {
@@ -662,7 +668,7 @@ export class EconomyManager {
       b._econActive = active;
     }
 
-    const crewPenalty = Math.floor(this.emergencyTimer / 5);
+    const crewPenalty = Math.floor(this.emergencyTimer / CREW_PENALTY_INTERVAL);
     this.crewTotal = Math.max(0, this.crewTotal - crewPenalty);
 
     // 5. Industria
@@ -747,7 +753,7 @@ export class EconomyManager {
         }
       }
       b._econActive = active;
-      if (b.type === 'rover_workshop' && active) simMaxRovers += 2;
+      if (b.type === 'rover_workshop' && active) simMaxRovers += ROVER_WORKSHOP_BONUS_ROVERS;
     }
 
     for (const r of this.rovers) {

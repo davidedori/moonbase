@@ -12,8 +12,9 @@ import {
   TILE_H,
   ROVER_EXPLORE_RADIUS,
   ROVER_MAX_CHARGE,
-  ROVER_TICKS_PER_CHARGE,
+  ROVER_MAX_DURABILITY,
 } from '../constants.js';
+import { ROVER_RECHARGE_INTERVAL_MS } from '../balance.js';
 
 export class Rover extends Phaser.GameObjects.Sprite {
   /**
@@ -64,7 +65,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
     this._rechargeCounter = 0;     // conta i tick fermi; ogni ROVER_TICKS_PER_CHARGE aggiunge 1
 
     // --- Durability & Wreck (SPRINT 1) ---
-    this.durability = 100; // ROVER_MAX_DURABILITY
+    this.durability = ROVER_MAX_DURABILITY;
     this.isWreck = false;
 
     // --- Stato accensione ---
@@ -104,7 +105,17 @@ export class Rover extends Phaser.GameObjects.Sprite {
       },
     });
 
-    // Ricarica gestita da EconomyManager.processEconomyTick (1 carica/tick, fermo+giorno)
+    // Timer indipendente: +1 carica ogni ROVER_RECHARGE_INTERVAL_MS (fermo + giorno)
+    this._rechargeTimer = scene.time.addEvent({
+      delay: ROVER_RECHARGE_INTERVAL_MS,
+      loop: true,
+      callback: () => {
+        if (!this.isWreck && !this.moving && this._economy.isDay) {
+          this.charge = Math.min(ROVER_MAX_CHARGE, this.charge + 1);
+          this._updateChargeBar();
+        }
+      },
+    });
 
   }
 
@@ -232,7 +243,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
   // Aggiungi precalculatedPath come ultimo parametro
   moveTo(destCol, destRow, occupiedGrid, terrainGrid, revealFogFn, setTileShadowFn, precalculatedPath = null) {
     if (this.moving) return false;
-    if (!this.isPowered || this.isWreck || this.charge <= 0) return false;
+    if (!this.isPowered || this.isWreck || this.charge <= 0 || !this.hasCrew) return false;
     if (this.col === destCol && this.row === destRow) return false;
 
     // Usa il percorso precalcolato se esiste, altrimenti calcolalo da zero
@@ -258,9 +269,15 @@ export class Rover extends Phaser.GameObjects.Sprite {
       return;
     }
 
-    // Pausa Tattica o crew mancante
-    if (this._economy.isPaused || !this.hasCrew) {
+    // Pausa Tattica: riprova tra 200ms
+    if (this._economy.isPaused) {
       this.scene.time.delayedCall(200, () => this._animateStep(revealFogFn, setTileShadowFn));
+      return;
+    }
+    // Crew mancante: annulla il movimento (non deve loopare all'infinito)
+    if (!this.hasCrew) {
+      this.moving = false;
+      this._pendingMove = null;
       return;
     }
 
@@ -411,8 +428,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
   // ---------------------------------------------------------------------------
 
   destroy(fromScene) {
-    // Distrugge i timer indipendenti
-
+    this._rechargeTimer?.remove(false);
     this._shadow?.destroy();
     this._shadow = null;
     this._chargeBar?.destroy();

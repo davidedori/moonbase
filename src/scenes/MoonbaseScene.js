@@ -53,6 +53,21 @@ import {
   DISTRICT_TYPES,
   DISTRICT_SLOT_OFFSETS,
 } from '../constants.js';
+import {
+  SUPPLY_DROP_INTERVAL_MS,
+  SUPPLY_DROP_COMPONENTS,
+  ARTEMIS_WRECK_REGOLITH,
+  INITIAL_WRECK_COUNT,
+  DEMOLISH_REFUND_DURING,
+  DEMOLISH_REFUND_AFTER,
+  ROVER_WRECK_RECYCLE_COMP,
+  DISTRICT_MODULE_NEIGHBOR_GAP,
+  DEPOSIT_MIN_CAPACITY,
+  DEPOSIT_MAX_CAPACITY,
+  DEPOSIT_RICH_DIST,
+  DEPOSIT_POOR_DIST,
+  DEPOSIT_NOISE_RANGE,
+} from '../balance.js';
 
 export class MoonbaseScene extends Phaser.Scene {
   constructor() {
@@ -206,6 +221,7 @@ export class MoonbaseScene extends Phaser.Scene {
     // --- UIManager ---
     this.ui = new UIManager(this._emitter, {
       onTogglePause: (btn) => this._togglePause(btn),
+      onToggleResourceLens: () => this._toggleResourceLens(),
     });
 
     // --- MissionControl (Sprint 4) ---
@@ -252,6 +268,10 @@ export class MoonbaseScene extends Phaser.Scene {
         this.tileResourceGraphics[row][col].destroy();
         this.tileResourceGraphics[row][col] = null;
       }
+      if (this.resourceLensGraphics[row]?.[col]) {
+        this.resourceLensGraphics[row][col].destroy();
+        this.resourceLensGraphics[row][col] = null;
+      }
       this.terrainGrid[row][col] = TERRAIN_NORMAL;
       this._showFloatingText(col, row, "DEPLETED", false);
     });
@@ -260,7 +280,10 @@ export class MoonbaseScene extends Phaser.Scene {
     this.tileGraphics = [];
     this.tileShadowGraphics = [];
     this.tileResourceGraphics = [];
+    this.resourceLensGraphics = [];
+    this.showResourceLens = false;
     this._drawGrid();
+    this._drawResourceLens();
     this._drawNaturalTerrainElements(); // SPRINT 1
     this._spawnInitialPOIs();           // SPRINT 1
     this._spawnRocks();
@@ -337,7 +360,7 @@ export class MoonbaseScene extends Phaser.Scene {
     // --- SPRINT 1: Supply Drops ogni 2 minuti ---
     this._supplyDropEvent?.remove(false);
     this._supplyDropEvent = this.time.addEvent({
-      delay: 120000,
+      delay: SUPPLY_DROP_INTERVAL_MS,
       callback: () => this._spawnSupplyDrop(),
       loop: true
     });
@@ -557,6 +580,14 @@ export class MoonbaseScene extends Phaser.Scene {
     const SAFE_R = 1;
 
     const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+    const distBasedCapacity = (dist) => {
+      const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+      const t       = clamp(dist, DEPOSIT_RICH_DIST, DEPOSIT_POOR_DIST);
+      const falloff = 1 - (t - DEPOSIT_RICH_DIST) / (DEPOSIT_POOR_DIST - DEPOSIT_RICH_DIST);
+      const base    = DEPOSIT_MIN_CAPACITY + falloff * (DEPOSIT_MAX_CAPACITY - DEPOSIT_MIN_CAPACITY);
+      const noise   = (Math.random() * 2 - 1) * DEPOSIT_NOISE_RANGE;
+      return Math.round(clamp(base + noise, DEPOSIT_MIN_CAPACITY, DEPOSIT_MAX_CAPACITY));
+    };
     const depositAccumulator = [];
 
     // Arrays SEPARATI per garantire una distribuzione uniforme di ENTRAMBI su tutta la mappa
@@ -769,7 +800,7 @@ export class MoonbaseScene extends Phaser.Scene {
           if (deposit.length >= N * 0.4) {
             let name = (targetType === TERRAIN_REGOLITH) ? depositNameList.pop() : null;
             deposit.forEach(cell => {
-              this.capacityGrid[cell.r][cell.c] = randInt(100, 300);
+              this.capacityGrid[cell.r][cell.c] = distBasedCapacity(distField[cell.r][cell.c]);
               if (name) this.terrainNamesGrid[cell.r][cell.c] = name;
             });
             depositAccumulator.push({ type: targetType, tiles: deposit.map(d => ({ row: d.r, col: d.c })) });
@@ -787,7 +818,7 @@ export class MoonbaseScene extends Phaser.Scene {
     const distMajorReg = calcDistField(TERRAIN_REGOLITH);
 
     // ─── 4b. FASE 3b: GIACIMENTI SATELLITE (Minori) ──────────────────────────
-    const growSatellite = (targetType, count, minT, maxT, majorDistField, avoidType) => {
+    const growSatellite = (targetType, count, minT, maxT, majorDistField, avoidType, featureDistField) => {
       let placed = 0; let attempts = 0;
       while (placed < count && attempts < 200) {
         attempts++;
@@ -835,7 +866,9 @@ export class MoonbaseScene extends Phaser.Scene {
             }
           }
           if (deposit.length >= N * 0.4) {
-            deposit.forEach(cell => this.capacityGrid[cell.r][cell.c] = randInt(100, 300));
+            deposit.forEach(cell => {
+              this.capacityGrid[cell.r][cell.c] = distBasedCapacity(featureDistField[cell.r][cell.c]);
+            });
             depositAccumulator.push({ type: targetType, tiles: deposit.map(d => ({ row: d.r, col: d.c })) });
             placed++; success = true; break;
           } else { deposit.forEach(cell => grid[cell.r][cell.c] = TERRAIN_NORMAL); }
@@ -843,8 +876,8 @@ export class MoonbaseScene extends Phaser.Scene {
       }
     };
 
-    growSatellite(TERRAIN_ICE, 18, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES, distMajorIce, TERRAIN_REGOLITH);
-    growSatellite(TERRAIN_REGOLITH, 32, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES, distMajorReg, TERRAIN_ICE);
+    growSatellite(TERRAIN_ICE,      18, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES, distMajorIce, TERRAIN_REGOLITH, distCrater);
+    growSatellite(TERRAIN_REGOLITH, 32, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES, distMajorReg, TERRAIN_ICE,      distRidge);
 
     this.depositGroups = depositAccumulator;
     return grid;
@@ -1254,6 +1287,44 @@ export class MoonbaseScene extends Phaser.Scene {
         // ---------------------------------------------------------------
       }
     }
+
+    this._resolveTerrainLabelOverlaps();
+  }
+
+  _resolveTerrainLabelOverlaps() {
+    const labels = this.terrainProps.filter(p => p.col !== undefined && p.row !== undefined && p.list?.length > 0);
+
+    // Raggio approssimato di ogni label in screen-space dopo rotazione -45° e scala del container
+    const radii = labels.map(container => {
+      const text = container.list[0];
+      if (!text) return 30;
+      const side = (text.width + text.height) / Math.SQRT2;
+      return Math.max(side * container.scaleX * 0.5, 20);
+    });
+
+    const MAX_ITER = 60;
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      let moved = false;
+      for (let i = 0; i < labels.length; i++) {
+        for (let j = i + 1; j < labels.length; j++) {
+          const a = labels[i], b = labels[j];
+          const minDist = radii[i] + radii[j];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
+          if (dist < minDist) {
+            const push = (minDist - dist) / 2;
+            const nx = dx / dist, ny = dy / dist;
+            a.x -= nx * push;
+            a.y -= ny * push;
+            b.x += nx * push;
+            b.y += ny * push;
+            moved = true;
+          }
+        }
+      }
+      if (!moved) break;
+    }
   }
 
   _drawGridIntersections() {
@@ -1511,7 +1582,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
         // 2. Rimuovi la nebbia solida (Graphics)
         if (this.fogGraphics[r]?.[c]) {
-          this.fogGraphics[r][c].destroy(); // Meglio destroy() di clear() se non ti servono più
+          this.fogGraphics[r][c].destroy();
           this.fogGraphics[r][c] = null;
         }
 
@@ -1521,6 +1592,16 @@ export class MoonbaseScene extends Phaser.Scene {
           this.fogEdgeMasks[r][c] = null;
         }
       }
+    }
+
+    // 4. Rendi visibili tutti i terrainProps (nomi crateri, montagne, rocce…)
+    for (const prop of this.terrainProps) {
+      prop.setVisible(true);
+    }
+
+    // 5. Rendi visibili tutti i POI (supply drop, relitti…)
+    for (const poi of this.pois) {
+      poi.sprite.setVisible(true);
     }
   }
 
@@ -1536,18 +1617,33 @@ export class MoonbaseScene extends Phaser.Scene {
         this.exploredTiles[r][c] = true;
         this.fogGraphics[r]?.[c]?.clear();
         revealed.push([r, c]);
-        // === NUOVO: Rivela ostacoli, rocce e testi nascosti ===
-        for (const prop of this.terrainProps) {
-          if (prop.col === c && prop.row === r) {
-            prop.setVisible(true);
+        // Se è un tile di un cratere, rivela l'intero cratere
+        if (this.terrainGrid[r]?.[c] === 'crater') {
+          const crater = this.squareCraters.find(cr =>
+            r >= cr.row && r < cr.row + cr.size &&
+            c >= cr.col && c < cr.col + cr.size
+          );
+          if (crater) {
+            for (let cr2 = crater.row; cr2 < crater.row + crater.size; cr2++) {
+              for (let cc2 = crater.col; cc2 < crater.col + crater.size; cc2++) {
+                if (!this.exploredTiles[cr2][cc2]) {
+                  this.exploredTiles[cr2][cc2] = true;
+                  this.fogGraphics[cr2]?.[cc2]?.clear();
+                  revealed.push([cr2, cc2]);
+                }
+              }
+            }
           }
         }
-        // === NUOVO: Rivela Supply Drops o Wrecks ===
-        for (const poi of this.pois) {
-          if (poi.col === c && poi.row === r) {
-            poi.sprite.setVisible(true);
-          }
-        }
+      }
+    }
+    // Rivela props e POI per tutti i tile scoperti (incluse espansioni cratere)
+    for (const [r, c] of revealed) {
+      for (const prop of this.terrainProps) {
+        if (prop.col === c && prop.row === r) prop.setVisible(true);
+      }
+      for (const poi of this.pois) {
+        if (poi.col === c && poi.row === r) poi.sprite.setVisible(true);
       }
     }
     // Aggiorna bordi: tile rivelati + 2 anelli (serve per dist-2 alpha)
@@ -1757,7 +1853,13 @@ export class MoonbaseScene extends Phaser.Scene {
       k => DISTRICT_TYPES[k].centerBuilding === centerBuildingType
     );
 
-    // ── 1. Verifica spazio 3×3 libero ────────────────────────────────────────
+    // ── 1. Centro non su terreno impraticabile ────────────────────────────────
+    const centerTerrain = this.terrainGrid[centerRow][centerCol];
+    if (centerTerrain === 'crater' || centerTerrain === 'ridge') {
+      console.warn('Centro su terreno impraticabile!'); return false;
+    }
+
+    // ── 2. Verifica spazio 3×3 libero (occupazione e distretto) ──────────────
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         const c = centerCol + dc;
@@ -1765,31 +1867,17 @@ export class MoonbaseScene extends Phaser.Scene {
         if (c < 0 || c >= GRID_SIZE || r < 0 || r >= GRID_SIZE) {
           console.warn('Area 3×3 fuori mappa!'); return false;
         }
-        // FIX: Aggiunto controllo ostacoli naturali
-        const terrain = this.terrainGrid[r][c];
-        if (this.occupiedTiles[r][c] || this.districtGrid[r][c] || terrain === 'crater' || terrain === 'ridge') {
-          console.warn('Spazio non libero o ostacolo naturale presente!'); return false;
+        if (this.occupiedTiles[r][c]) {
+          console.warn('Spazio non libero!'); return false;
         }
       }
     }
 
-    // ── 2. Verifica nessun distretto ortogonalmente adiacente ─────────────────
-    // Per ogni tile nella 3×3, controlla i 4 vicini ortogonali fuori dall'area
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        const c = centerCol + dc;
-        const r = centerRow + dr;
-        for (const [ndc, ndr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const nc = c + ndc;
-          const nr = r + ndr;
-          // Vicino deve essere fuori dalla 3×3 per essere rilevante
-          if (Math.abs(nc - centerCol) <= 1 && Math.abs(nr - centerRow) <= 1) continue;
-          if (nc < 0 || nc >= GRID_SIZE || nr < 0 || nr >= GRID_SIZE) continue;
-          if (this.districtGrid[nr][nc] !== null) {
-            console.warn('Distretto adiacente rilevato!'); return false;
-          }
-        }
-      }
+    // ── Gap da building di altri distretti (coerente con DISTRICT_MODULE_NEIGHBOR_GAP) ──
+    if (this.buildings.some(b => b.district &&
+      Math.max(Math.abs(b.col - centerCol), Math.abs(b.row - centerRow)) <= DISTRICT_MODULE_NEIGHBOR_GAP + 1
+    )) {
+      console.warn('Troppo vicino a un building di altro distretto!'); return false;
     }
 
     // ── 3. Verifica terreno ────────────────────────────────────────────────────
@@ -1848,6 +1936,7 @@ export class MoonbaseScene extends Phaser.Scene {
     this.economy.components -= (info.costComponents ?? 0);
 
     this.occupiedTiles[centerRow][centerCol] = true;
+    this._lastHoverCol = null; this._lastHoverRow = null; this._lastHoverPath = null;
     // Conduit prima → renderizzato sotto l'edificio centrale
     this._placeBuildingGraphics(centerCol, centerRow, 'conduit');
     this._placeBuildingGraphics(centerCol, centerRow, centerBuildingType);
@@ -1910,12 +1999,32 @@ export class MoonbaseScene extends Phaser.Scene {
       return !!b;
     };
 
-    // Dijkstra — costo 10 per mosse ortogonali, 14 per diagonali (≈ √2×10)
-    // → preferisce ortogonale a parità di tile, usa diagonale solo se genuinamente più corto
+    // A* — costo 10 per mosse ortogonali, 14 per diagonali (≈ √2×10)
+    // Euristica octile verso il nodo di rete più vicino guida la ricerca in linea retta
     const COST_ORTHO = 10;
     const COST_DIAG = 14;
 
-    const costMap = new Map(); // key → costo minimo raggiunto
+    // Pre-trova il nodo di rete più vicino per l'euristica A*
+    let hTargetC = -1, hTargetR = -1;
+    {
+      let best = Infinity;
+      for (let r = 0; r < GRID_SIZE; r++) {
+        for (let c = 0; c < GRID_SIZE; c++) {
+          if (isNetworkNode(c, r)) {
+            const dx = Math.abs(c - startCol), dy = Math.abs(r - startRow);
+            const d = COST_ORTHO * Math.max(dx, dy) + (COST_DIAG - COST_ORTHO) * Math.min(dx, dy);
+            if (d < best) { best = d; hTargetC = c; hTargetR = r; }
+          }
+        }
+      }
+    }
+    const h = (c, r) => {
+      if (hTargetC < 0) return 0;
+      const dx = Math.abs(c - hTargetC), dy = Math.abs(r - hTargetR);
+      return COST_ORTHO * Math.max(dx, dy) + (COST_DIAG - COST_ORTHO) * Math.min(dx, dy);
+    };
+
+    const costMap = new Map(); // key → costo g minimo raggiunto
     const parentMap = new Map();
     const key = (c, r) => `${c},${r}`;
 
@@ -1977,7 +2086,7 @@ export class MoonbaseScene extends Phaser.Scene {
           if (!costMap.has(ok) || costMap.get(ok) > moveCost) {
             costMap.set(ok, moveCost);
             parentMap.set(ok, borderKey);
-            heapPush(moveCost, oc, or2);
+            heapPush(moveCost + h(oc, or2), oc, or2);
           }
         }
       }
@@ -1986,13 +2095,13 @@ export class MoonbaseScene extends Phaser.Scene {
     let foundKey = null;
 
     while (heap.length > 0) {
-      const [cost, c, r] = heapPop();
+      const [f, c, r] = heapPop();
       const ck = key(c, r);
-      if (costMap.get(ck) < cost) continue; // costo già migliorato → scarta
+      const g = costMap.get(ck);
+      if (g + h(c, r) < f) continue; // entry stale: costMap ha già un g migliore
 
       if (isNetworkNode(c, r)) { foundKey = ck; break; }
 
-      // Ortogonali prima (costo 10), poi diagonali (costo 14)
       for (const [ndc, ndr, moveCost] of [
         [1, 0, COST_ORTHO], [-1, 0, COST_ORTHO], [0, 1, COST_ORTHO], [0, -1, COST_ORTHO],
         [1, -1, COST_DIAG], [-1, 1, COST_DIAG], [1, 1, COST_DIAG], [-1, -1, COST_DIAG],
@@ -2006,15 +2115,19 @@ export class MoonbaseScene extends Phaser.Scene {
         const otherDistrict = this.districtGrid[nr]?.[nc];
         if (otherDistrict && otherDistrict !== district) {
           if (isNetworkNode(nc, nr)) {
-            const nc2 = cost + moveCost;
+            const nc2 = g + moveCost;
             if (!costMap.has(nk) || costMap.get(nk) > nc2) {
               costMap.set(nk, nc2);
               parentMap.set(nk, ck);
-              heapPush(nc2, nc, nr);
+              heapPush(nc2 + h(nc, nr), nc, nr);
             }
           }
           continue;
         }
+
+        // Non attraversare crateri o creste
+        const _t = this.terrainGrid[nr]?.[nc];
+        if (_t === 'crater' || _t === 'ridge') continue;
 
         // Non attraversare edifici duri occupati (tranne condotti)
         if (this.occupiedTiles[nr][nc]) {
@@ -2022,11 +2135,11 @@ export class MoonbaseScene extends Phaser.Scene {
           if (!b) continue;
         }
 
-        const newCost = cost + moveCost;
+        const newCost = g + moveCost;
         if (!costMap.has(nk) || costMap.get(nk) > newCost) {
           costMap.set(nk, newCost);
           parentMap.set(nk, ck);
-          heapPush(newCost, nc, nr);
+          heapPush(newCost + h(nc, nr), nc, nr);
         }
       }
     }
@@ -2147,12 +2260,9 @@ export class MoonbaseScene extends Phaser.Scene {
     // --------------------------------------------
 
     const terrain = this.terrainGrid[slot.row]?.[slot.col];
-    if (moduleType === 'regolith_extractor' && terrain !== TERRAIN_REGOLITH) {
-      return false;
-    }
-    if (moduleType === 'ice_extractor' && terrain !== TERRAIN_ICE) {
-      return false;
-    }
+    if (terrain === 'crater' || terrain === 'ridge') return false;
+    if (moduleType === 'regolith_extractor' && terrain !== TERRAIN_REGOLITH) return false;
+    if (moduleType === 'ice_extractor' && terrain !== TERRAIN_ICE) return false;
 
     // --- NUOVO CONTROLLO: Verifica che non ci sia un rover sulla tile ---
     if (this._isRoverOnTile(slot.col, slot.row)) {
@@ -2169,6 +2279,20 @@ export class MoonbaseScene extends Phaser.Scene {
     // Verifica costo
     if (this.economy.regolith < (info.cost ?? 0)) { console.warn('Regolite insufficiente!'); return false; }
     if (this.economy.components < (info.costComponents ?? 0)) { console.warn('Componenti insufficienti!'); return false; }
+
+    // ── Adiacenza inter-distretto (raggio = DISTRICT_MODULE_NEIGHBOR_GAP) ─────
+    let _adjBlocked = false;
+    outer: for (let dr = -DISTRICT_MODULE_NEIGHBOR_GAP; dr <= DISTRICT_MODULE_NEIGHBOR_GAP; dr++) {
+      for (let dc = -DISTRICT_MODULE_NEIGHBOR_GAP; dc <= DISTRICT_MODULE_NEIGHBOR_GAP; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nc = slot.col + dc; const nr = slot.row + dr;
+        if (nc < 0 || nc >= GRID_SIZE || nr < 0 || nr >= GRID_SIZE) continue;
+        if (this.buildings.some(b => b.col === nc && b.row === nr && b.district && b.district !== district)) {
+          _adjBlocked = true; break outer;
+        }
+      }
+    }
+    if (_adjBlocked) { console.warn('Modulo adiacente a un altro distretto!'); return false; }
 
     // Esecuzione
     this.economy.regolith -= (info.cost ?? 0);
@@ -2188,6 +2312,7 @@ export class MoonbaseScene extends Phaser.Scene {
     }
 
     this.occupiedTiles[slot.row][slot.col] = true;
+    this._lastHoverCol = null; this._lastHoverRow = null; this._lastHoverPath = null;
     // Conduit prima → renderizzato sotto il modulo
     this._placeBuildingGraphics(slot.col, slot.row, 'conduit');
     this._placeBuildingGraphics(slot.col, slot.row, moduleType);
@@ -2384,10 +2509,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
       const [col, row] = key.split(',').map(Number);
       const bs = this.buildings.filter(b2 => b2.col === col && b2.row === row);
-      // Le tile di distretto (senza edifici) sono comunque attraversabili:
-      // il distretto funge da hub, le sue tile non bloccano la connettività.
-      const inDistrict = !!this.districtGrid[row]?.[col];
-      if (bs.length === 0 && !inDistrict) continue;
+      if (bs.length === 0) continue;
 
       for (const b of bs) connected.add(b);
 
@@ -2525,28 +2647,12 @@ export class MoonbaseScene extends Phaser.Scene {
 
     this.occupiedTiles[row][col] = false;
 
-    // Rimozione condotto base sottostante
-    if (!info?.isPassable) {
-      const conduitIdx = this.buildings.findIndex(
-        b => b.col === col && b.row === row && b.type === 'conduit'
-      );
-      if (conduitIdx >= 0) {
-        if (this.buildings[conduitIdx]._armSprites) {
-          Object.values(this.buildings[conduitIdx]._armSprites).forEach(s => s?.destroy());
-          Object.values(this.buildings[conduitIdx]._armShadows ?? {}).forEach(s => s?.destroy());
-        }
-        this.buildings[conduitIdx].gfx.destroy();
-        this.buildings[conduitIdx]._shadow?.destroy();
-        this.buildings.splice(conduitIdx, 1);
-      }
-    }
-
     this._setTileShadow(col, row, false);
 
     // =========================================================================
     // 2. FIX DOPPIO RIMBORSO (Double Dipping)
     // =========================================================================
-    const refundMultiplier = building.isConstructing ? 1.0 : 0.5;
+    const refundMultiplier = building.isConstructing ? DEMOLISH_REFUND_DURING : DEMOLISH_REFUND_AFTER;
     let refundReg = Math.floor((info.cost ?? 0) * refundMultiplier);
     let refundComp = Math.floor((info.costComponents ?? 0) * refundMultiplier);
 
@@ -2715,6 +2821,46 @@ export class MoonbaseScene extends Phaser.Scene {
     }
   }
 
+  _drawResourceLens() {
+    this.resourceLensGraphics = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        const terrain = this.terrainGrid[row][col];
+        if (terrain !== TERRAIN_ICE && terrain !== TERRAIN_REGOLITH) continue;
+        const capacity = this.capacityGrid[row][col];
+        const { x: cx, y: cy } = cartesianToIsometric(col, row);
+        const w2 = TILE_W / 2;
+        const h2 = TILE_H / 2;
+        const baseDepth = row + col - GRID_SIZE * 4;
+        const color = terrain === TERRAIN_ICE ? 0x44aaff : 0xff8833;
+        const alpha = 0.15 + 0.65 * (capacity / DEPOSIT_MAX_CAPACITY);
+        const gfx = this.add.graphics();
+        gfx.setPosition(cx, cy);
+        gfx.fillStyle(color, alpha);
+        gfx.beginPath();
+        gfx.moveTo(0, -h2);
+        gfx.lineTo(w2, 0);
+        gfx.lineTo(0, h2);
+        gfx.lineTo(-w2, 0);
+        gfx.closePath();
+        gfx.fillPath();
+        gfx.setDepth(baseDepth + 3);
+        gfx.setVisible(false);
+        this.resourceLensGraphics[row][col] = gfx;
+      }
+    }
+  }
+
+  _toggleResourceLens() {
+    this.showResourceLens = !this.showResourceLens;
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        this.resourceLensGraphics[row]?.[col]?.setVisible(this.showResourceLens);
+      }
+    }
+    this.ui.updateResourceLensButton(this.showResourceLens);
+  }
+
   _syncPreviewGraphic(type) {
     // Se è già lo stesso tipo, non facciamo nulla
     if (this._currentPreviewType === type && this.previewObj) return;
@@ -2823,15 +2969,52 @@ export class MoonbaseScene extends Phaser.Scene {
         for (const slot of this.selectedDistrict.slots) {
           if (slot.module) continue;
           const terrain = this.terrainGrid[slot.row]?.[slot.col];
-          let terrainOk = true;
-          if (this.selectedBuilding === 'regolith_extractor') terrainOk = terrain === TERRAIN_REGOLITH;
-          if (this.selectedBuilding === 'ice_extractor') terrainOk = terrain === TERRAIN_ICE;
+          let terrainOk = terrain !== 'crater' && terrain !== 'ridge';
+          if (terrainOk && this.selectedBuilding === 'regolith_extractor') terrainOk = terrain === TERRAIN_REGOLITH;
+          if (terrainOk && this.selectedBuilding === 'ice_extractor') terrainOk = terrain === TERRAIN_ICE;
           const isRoverOnTile = this._isRoverOnTile(slot.col, slot.row);
-          const isValid = terrainOk && canAfford && !isRoverOnTile;
+          let adjacentToOtherDistrict = false;
+          outerAdj: for (let dr = -DISTRICT_MODULE_NEIGHBOR_GAP; dr <= DISTRICT_MODULE_NEIGHBOR_GAP; dr++) {
+            for (let dc = -DISTRICT_MODULE_NEIGHBOR_GAP; dc <= DISTRICT_MODULE_NEIGHBOR_GAP; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              const nc = slot.col + dc; const nr = slot.row + dr;
+              if (nc < 0 || nc >= GRID_SIZE || nr < 0 || nr >= GRID_SIZE) continue;
+              if (this.buildings.some(b => b.col === nc && b.row === nr && b.district && b.district !== this.selectedDistrict)) {
+                adjacentToOtherDistrict = true; break outerAdj;
+              }
+            }
+          }
+          const isValid = terrainOk && canAfford && !isRoverOnTile && !adjacentToOtherDistrict;
           drawPlacementBrackets(slot.col, slot.row, isValid, true);
           if (slot.col === hoverPos.col && slot.row === hoverPos.row) {
             previewTarget = { col: slot.col, row: slot.row };
             previewValid = isValid;
+          }
+        }
+
+        // ── Crocette rosse sulle tile esterne bloccate dal modulo hoverate ──
+        const _hovSlot = hoverPos && this.selectedDistrict.slots.find(
+          s => !s.module && s.col === hoverPos.col && s.row === hoverPos.row
+        );
+        if (_hovSlot) {
+          const _cx = this.selectedDistrict.centerCol;
+          const _cy = this.selectedDistrict.centerRow;
+          const _armLen = 5;
+          const _iX = TILE_W / 2, _iY = TILE_H / 2;
+          const _len = Math.hypot(_iX, _iY);
+          const _dX = { x: _iX / _len, y: _iY / _len };
+          const _dY = { x: -_iX / _len, y: _iY / _len };
+          this.highlighter.lineStyle(1.5, 0xff3333, 0.85);
+          for (let dr = -DISTRICT_MODULE_NEIGHBOR_GAP; dr <= DISTRICT_MODULE_NEIGHBOR_GAP; dr++) {
+            for (let dc = -DISTRICT_MODULE_NEIGHBOR_GAP; dc <= DISTRICT_MODULE_NEIGHBOR_GAP; dc++) {
+              if (dr === 0 && dc === 0) continue;
+              const nc = _hovSlot.col + dc; const nr = _hovSlot.row + dr;
+              if (nc < 0 || nc >= GRID_SIZE || nr < 0 || nr >= GRID_SIZE) continue;
+              if (Math.abs(nc - _cx) <= 1 && Math.abs(nr - _cy) <= 1) continue;
+              const { x: tx, y: ty } = cartesianToIsometric(nc, nr);
+              this.highlighter.lineBetween(tx - _dX.x * _armLen, ty - _dX.y * _armLen, tx + _dX.x * _armLen, ty + _dX.y * _armLen);
+              this.highlighter.lineBetween(tx - _dY.x * _armLen, ty - _dY.y * _armLen, tx + _dY.x * _armLen, ty + _dY.y * _armLen);
+            }
           }
         }
       } else {
@@ -2847,23 +3030,52 @@ export class MoonbaseScene extends Phaser.Scene {
 
           if (isDistrictCenter) {
             let allValid = canAfford;
+            // Bounds (3×3 deve stare nella mappa)
             if (targetCol < 1 || targetCol >= GRID_SIZE - 1 || targetRow < 1 || targetRow >= GRID_SIZE - 1) allValid = false;
+            // Rover range
             if (allValid && !this.rovers.some(r => this._isWithinRoverRange(r, targetCol, targetRow))) allValid = false;
-            // ... (altri controlli validazione distretto omessi per brevità, usa quelli che hai) ...
-
+            // Centro su crater/ridge
+            if (allValid) {
+              const ct = this.terrainGrid[targetRow]?.[targetCol];
+              if (ct === 'crater' || ct === 'ridge') allValid = false;
+            }
+            // Gap da building di altri distretti
+            if (allValid && this.buildings.some(b => b.district &&
+              Math.max(Math.abs(b.col - targetCol), Math.abs(b.row - targetRow)) <= DISTRICT_MODULE_NEIGHBOR_GAP + 1
+            )) allValid = false;
+            // Terreno richiesto dal tipo di distretto (mining → regolith, ice → ice)
+            if (allValid) {
+              const dtDef = Object.values(DISTRICT_TYPES).find(dt => dt.centerBuilding === this.selectedBuilding);
+              if (dtDef?.terrainReq) {
+                const needed = dtDef.terrainReq === 'borders_regolith' ? TERRAIN_REGOLITH : TERRAIN_ICE;
+                const found = [-1,0,1].some(dr => [-1,0,1].some(dc => {
+                  if (dr === 0 && dc === 0) return false;
+                  const c = targetCol + dc; const r = targetRow + dr;
+                  return c >= 0 && c < GRID_SIZE && r >= 0 && r < GRID_SIZE && this.terrainGrid[r]?.[c] === needed;
+                }));
+                if (!found) allValid = false;
+              }
+            }
+            // Per-tile: controlla ogni casella della 3×3 individualmente
+            let anyTileBlocked = false;
             for (let dr = -1; dr <= 1; dr++) {
               for (let dc = -1; dc <= 1; dc++) {
                 const c = targetCol + dc; const r = targetRow + dr;
                 if (c < 0 || c >= GRID_SIZE || r < 0 || r >= GRID_SIZE) continue;
-                drawPlacementBrackets(c, r, allValid, (dc === 0 && dr === 0));
+                const isCenter = (dc === 0 && dr === 0);
+                const tileConflict = !!this.occupiedTiles[r]?.[c];
+                if (tileConflict) anyTileBlocked = true;
+                drawPlacementBrackets(c, r, allValid && !tileConflict, isCenter);
               }
             }
-            previewTarget = { col: targetCol, row: targetRow }; previewValid = allValid;
+            previewTarget = { col: targetCol, row: targetRow };
+            previewValid = allValid && !anyTileBlocked;
           } else {
             const isOccupied = isConduit ? (this.occupiedTiles[targetRow][targetCol] || this.buildings.find(b => b.col === targetCol && b.row === targetRow && b.type === 'conduit')) : (this.occupiedTiles[targetRow][targetCol] || this._isRoverOnTile(targetCol, targetRow));
             let terrainOk = true;
             if (this.selectedBuilding === 'regolith_extractor') terrainOk = this.terrainGrid[targetRow][targetCol] === TERRAIN_REGOLITH;
             if (this.selectedBuilding === 'ice_extractor') terrainOk = this.terrainGrid[targetRow][targetCol] === TERRAIN_ICE;
+            if (isConduit) { const _t = this.terrainGrid[targetRow][targetCol]; if (_t === 'crater' || _t === 'ridge') terrainOk = false; }
             const isValid = !isOccupied && canAfford && terrainOk && this.isTileValidForBuild(targetCol, targetRow, this.selectedBuilding, this.selectedRover);
             drawPlacementBrackets(targetCol, targetRow, isValid, true);
             previewTarget = { col: targetCol, row: targetRow }; previewValid = isValid;
@@ -3018,6 +3230,9 @@ export class MoonbaseScene extends Phaser.Scene {
     if (isConduit) {
       if (this.occupiedTiles[row][col]) { console.warn('Tile già occupata!'); return; }
 
+      const _conduitTerrain = this.terrainGrid[row][col];
+      if (_conduitTerrain === 'crater' || _conduitTerrain === 'ridge') { console.warn('Condotto: terreno impraticabile!'); return; }
+
       // Se c'è un condotto danneggiato, il rover può solo ripararlo
       if (existingConduit?.isDamaged) {
         if (!this.selectedRover || this.selectedRover.col !== col || this.selectedRover.row !== row) {
@@ -3091,6 +3306,7 @@ export class MoonbaseScene extends Phaser.Scene {
       // Condotto passabile: NON blocca occupiedTiles, nessun costo di carica
     } else {
       this.occupiedTiles[row][col] = true;
+      this._lastHoverCol = null; this._lastHoverRow = null; this._lastHoverPath = null;
     }
 
     // Conduit prima → stessa depth dell'edificio, ma creato prima → renderizzato sotto
@@ -3323,7 +3539,7 @@ export class MoonbaseScene extends Phaser.Scene {
   // ROVER: COSTRUZIONE, SELEZIONE, MOVIMENTO
   // ===========================================================================
 
-  _buildRover() {
+  _buildRover(sourceBuilding = null) {
     const activeRoversCount = this.rovers.filter(r => !r.isWreck).length;
     if (activeRoversCount >= (this.economy.maxRovers ?? 0)) {
       console.warn(`Rover Limit (${this.economy.maxRovers}) reached! Build more Rover Workshops.`);
@@ -3340,15 +3556,16 @@ export class MoonbaseScene extends Phaser.Scene {
       console.warn(`${ROVER_COST_TYPE === 'components' ? 'Componenti' : 'Regolite'} insufficienti per il Rover!`); return;
     }
 
-    const center = Math.floor(GRID_SIZE / 2);
+    const spawnRow = sourceBuilding?.row ?? this.buildings.find(b => b.type === 'command')?.row ?? Math.floor(GRID_SIZE / 2);
+    const spawnCol = sourceBuilding?.col ?? this.buildings.find(b => b.type === 'command')?.col ?? Math.floor(GRID_SIZE / 2);
     let placed = false;
 
     for (let radius = 0; radius < GRID_SIZE && !placed; radius++) {
       for (let dr = -radius; dr <= radius && !placed; dr++) {
         for (let dc = -radius; dc <= radius && !placed; dc++) {
           if (Math.abs(dr) !== radius && Math.abs(dc) !== radius) continue;
-          const r = center + dr;
-          const c = center + dc;
+          const r = spawnRow + dr;
+          const c = spawnCol + dc;
           if (r < 0 || r >= GRID_SIZE || c < 0 || c >= GRID_SIZE) continue;
           if (this.occupiedTiles[r][c]) continue;
           if (!this.exploredTiles[r][c]) continue;
@@ -3538,7 +3755,7 @@ export class MoonbaseScene extends Phaser.Scene {
           this._updateContextPanel();
         }
       },
-      onBuildRover: () => this._buildRover(),
+      onBuildRover: () => this._buildRover(entity?.ref),
       onStartBuild: (type) => {
         this.selectedBuilding = type;
         this.selectedDistrict = null;
@@ -4061,12 +4278,9 @@ export class MoonbaseScene extends Phaser.Scene {
       (Math.abs(pointer.x - this._drag.startX) > 5 ||
         Math.abs(pointer.y - this._drag.startY) > 5)) return null;
 
-    if (currentlyOver.length > 0) {
-      if (this.selectedBuilding) return null;  // build mode: blocca tutto
-      return null;  // selection mode: gli sprite handler gestiscono tutto
-      //              (edifici con sprite: _attachBuildingPointerdown;
-      //               edifici procedurali: currentlyOver sarà vuoto)
-    }
+    // Right-click ignora currentlyOver (il movimento rover deve sempre passare)
+    // Left-click: se c'è uno sprite interattivo, lasciamo gestire a lui
+    if (!pointer.rightButtonDown() && currentlyOver.length > 0) return null;
 
     const { col, row } = isometricToCartesian(pointer.worldX, pointer.worldY);
     if (col < 0 || col >= GRID_SIZE || row < 0 || row >= GRID_SIZE) return null;
@@ -4512,7 +4726,7 @@ export class MoonbaseScene extends Phaser.Scene {
     if (activeRover === wreckRover) return; // FIX: Impedisce l'auto-riciclo
     const dist = Math.max(Math.abs(activeRover.col - wreckRover.col), Math.abs(activeRover.row - wreckRover.row));
     if (dist <= 1) {
-      this.economy.components += 20;
+      this.economy.components += ROVER_WRECK_RECYCLE_COMP;
       this.occupiedTiles[wreckRover.row][wreckRover.col] = false;
 
       const index = this.rovers.indexOf(wreckRover);
@@ -4525,7 +4739,7 @@ export class MoonbaseScene extends Phaser.Scene {
   }
 
   _spawnInitialPOIs() {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < INITIAL_WRECK_COUNT; i++) {
       const col = Phaser.Math.Between(5, GRID_SIZE - 5);
       const row = Phaser.Math.Between(5, GRID_SIZE - 5);
       if (!this.occupiedTiles[row][col] && this.terrainGrid[row][col] === 'normal') {
@@ -4537,7 +4751,7 @@ export class MoonbaseScene extends Phaser.Scene {
         poiImg.col = col; // adattare se necessario al centro
         poiImg.row = row;
         poiImg.setVisible(this.exploredTiles[poiImg.row][poiImg.col]);
-        this.pois.push({ type: 'wreck', col, row, sprite: poiImg, reward: 50 });
+        this.pois.push({ type: 'wreck', col, row, sprite: poiImg, reward: ARTEMIS_WRECK_REGOLITH });
       }
     }
   }
@@ -4600,7 +4814,7 @@ export class MoonbaseScene extends Phaser.Scene {
       },
       onComplete: () => {
         drop.setDepth(dropDepth);
-        this.pois.push({ type: 'supply', col: target.c, row: target.r, sprite: drop, reward: 30 });
+        this.pois.push({ type: 'supply', col: target.c, row: target.r, sprite: drop, reward: SUPPLY_DROP_COMPONENTS });
 
         this._showFloatingText(target.c, target.r, "SUPPLY DROP SECURED", true);
 

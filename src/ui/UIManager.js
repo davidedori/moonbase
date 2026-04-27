@@ -157,6 +157,9 @@ export class UIManager {
     const btnPause = document.getElementById('btn-pause');
     if (btnPause) btnPause.addEventListener('click', () => cb.onTogglePause?.(btnPause));
 
+    const btnResourceLens = document.getElementById('btn-resource-lens');
+    if (btnResourceLens) btnResourceLens.addEventListener('click', () => cb.onToggleResourceLens?.());
+
     // Speed Controls
     const speedBtns = document.querySelectorAll('.speed-btn');
     speedBtns.forEach(btn => {
@@ -708,6 +711,10 @@ export class UIManager {
       btn.classList.remove('active');
       if (icoEl) { icoEl.setAttribute('data-lucide', 'pause'); refreshIcons(); }
     }
+  }
+
+  updateResourceLensButton(isActive) {
+    document.getElementById('btn-resource-lens')?.classList.toggle('active', isActive);
   }
 
   updateSpeedButtons(speed) {

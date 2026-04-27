@@ -1,6 +1,82 @@
 // =============================================================================
 // MOONBASE — Costanti di configurazione globali
+// I numeri di bilanciamento vivono in src/balance.js — modifica lì.
 // =============================================================================
+
+import {
+  // Giacimenti
+  DEPOSIT_MIN_CAPACITY, DEPOSIT_MAX_CAPACITY,
+  GIACIMENTO_MINOR_SIZE, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES,
+  GIACIMENTO_MINOR_COUNT_ICE, GIACIMENTO_MINOR_COUNT_REG,
+  GIACIMENTO_MAJOR_SIZE, GIACIMENTO_MAJOR_MIN_TILES, GIACIMENTO_MAJOR_MAX_TILES,
+  GIACIMENTO_MAJOR_COUNT_ICE, GIACIMENTO_MAJOR_COUNT_REG,
+  GIACIMENTO_CMD_SAFE_RADIUS, GIACIMENTO_MAX_ATTEMPTS,
+  // Rover
+  ROVER_COST, ROVER_COST_TYPE,
+  ROVER_MAX_CHARGE, ROVER_TICKS_PER_CHARGE, ROVER_EXPLORE_RADIUS, ROVER_MAX_DURABILITY,
+  // Mappa
+  INITIAL_EXPLORED_SIZE,
+  // Ciclo giorno/notte
+  DAY_DURATION_MS, NIGHT_DURATION_MS, GRACE_PERIOD_DAYS,
+  // POI
+  SUPPLY_DROP_INTERVAL_MS,
+  // Edifici — costi
+  HABITAT_HUB_COST, HABITAT_HUB_COST_COMP,
+  LOGISTICS_HUB_COST, LOGISTICS_HUB_COST_COMP,
+  MINING_HUB_COST, MINING_HUB_COST_COMP,
+  CRYO_HUB_COST, CRYO_HUB_COST_COMP,
+  POWER_CENTER_COST, POWER_CENTER_COST_COMP,
+  ROVER_WORKSHOP_COST, ROVER_WORKSHOP_COST_COMP,
+  ISRU_PLANT_COST, ISRU_PLANT_COST_COMP,
+  COMPONENT_FACTORY_COST, COMPONENT_FACTORY_COST_COMP,
+  H2O_TANK_COST, H2O_TANK_COST_COMP,
+  BATTERY_BANK_COST, BATTERY_BANK_COST_COMP,
+  SOLAR_ARRAY_COST, SOLAR_ARRAY_COST_COMP,
+  RTG_COST, RTG_COST_COMP,
+  HAB_MODULE_COST, HAB_MODULE_COST_COMP,
+  BOTANY_GREENHOUSE_COST, BOTANY_GREENHOUSE_COST_COMP,
+  MEDBAY_COST, MEDBAY_COST_COMP,
+  REGOLITH_EXTRACTOR_COST, REGOLITH_EXTRACTOR_COST_COMP,
+  ICE_EXTRACTOR_COST, ICE_EXTRACTOR_COST_COMP,
+  RECYCLING_FACILITY_COST, RECYCLING_FACILITY_COST_COMP,
+  DEEP_DRILL_COST, DEEP_DRILL_COST_COMP,
+  CONDUIT_COST, CONDUIT_COST_COMP,
+  // Edifici — energia
+  ROVER_WORKSHOP_ENERGY, ISRU_PLANT_ENERGY, COMPONENT_FACTORY_ENERGY,
+  HAB_MODULE_ENERGY, BOTANY_GREENHOUSE_ENERGY, MEDBAY_ENERGY,
+  REGOLITH_EXTRACTOR_ENERGY, ICE_EXTRACTOR_ENERGY, RECYCLING_FACILITY_ENERGY, DEEP_DRILL_ENERGY,
+  // Edifici — generazione energia
+  SOLAR_ARRAY_ENERGY_DAY, SOLAR_ARRAY_ENERGY_NIGHT, RTG_ENERGY_DAY, RTG_ENERGY_NIGHT,
+  // Edifici — rese
+  REGOLITH_EXTRACTOR_GEN, ICE_EXTRACTOR_GEN, DEEP_DRILL_GEN, HAB_MODULE_CREW_GEN,
+  // Conversioni
+  ISRU_ICE_INPUT, ISRU_OXYGEN_OUTPUT,
+  COMPONENT_FACTORY_REG_INPUT, COMPONENT_FACTORY_COMP_OUTPUT,
+  BOTANY_ICE_INPUT, BOTANY_OXYGEN_OUTPUT,
+  // Ossigeno / storage / crew
+  HAB_MODULE_O2_CONS,
+  H2O_TANK_O2_CAP_BONUS, BATTERY_BANK_ENERGY_CAP_BONUS,
+  ISRU_CREW_REQ, COMPONENT_FACTORY_CREW_REQ,
+  REGOLITH_EXTRACTOR_CREW_REQ, ICE_EXTRACTOR_CREW_REQ,
+  RECYCLING_FACILITY_CREW_REQ, DEEP_DRILL_CREW_REQ,
+  // Conduit
+  CONDUIT_CHARGE_COST,
+} from './balance.js';
+
+// Re-export per compatibilità con i file che importano da constants.js
+export {
+  DEPOSIT_MIN_CAPACITY, DEPOSIT_MAX_CAPACITY,
+  GIACIMENTO_MINOR_SIZE, GIACIMENTO_MINOR_MIN_TILES, GIACIMENTO_MINOR_MAX_TILES,
+  GIACIMENTO_MINOR_COUNT_ICE, GIACIMENTO_MINOR_COUNT_REG,
+  GIACIMENTO_MAJOR_SIZE, GIACIMENTO_MAJOR_MIN_TILES, GIACIMENTO_MAJOR_MAX_TILES,
+  GIACIMENTO_MAJOR_COUNT_ICE, GIACIMENTO_MAJOR_COUNT_REG,
+  GIACIMENTO_CMD_SAFE_RADIUS, GIACIMENTO_MAX_ATTEMPTS,
+  ROVER_COST, ROVER_COST_TYPE,
+  ROVER_MAX_CHARGE, ROVER_TICKS_PER_CHARGE, ROVER_EXPLORE_RADIUS, ROVER_MAX_DURABILITY,
+  INITIAL_EXPLORED_SIZE,
+  DAY_DURATION_MS, NIGHT_DURATION_MS, GRACE_PERIOD_DAYS,
+  SUPPLY_DROP_INTERVAL_MS,
+} from './balance.js';
 
 export const GRID_SIZE = 40;
 export const TILE_W = 64;
@@ -24,16 +100,6 @@ export const TERRAIN_REGOLITH = 'regolith';
 export const TERRAIN_CRATER = 'crater';
 export const TERRAIN_RIDGE = 'ridge';
 
-// --- CAPACITÀ GIACIMENTI ---
-export const DEPOSIT_MIN_CAPACITY = 100;
-export const DEPOSIT_MAX_CAPACITY = 300;
-
-// --- ROVER STATS ---
-export const ROVER_MAX_DURABILITY = 100;
-
-// --- SUPPLY DROPS ---
-export const SUPPLY_DROP_INTERVAL_MS = 120000; // 2 minuti
-
 // Colori terreno — solidi, nessuna texture procedurale
 export const TERRAIN_COLORS = {
   normal: 0x6b6b6b, // grigio luna base
@@ -43,118 +109,105 @@ export const TERRAIN_COLORS = {
   ridge: 0x8a8a8a, // cresta
 };
 
-// Raggio di esplorazione del Rover (in tile)
-export const ROVER_EXPLORE_RADIUS = 2;
-
-// Dimensione zona inizialmente esplorata (5x5 al centro)
-export const INITIAL_EXPLORED_SIZE = 5;
-
-// Costo Rover (ora richiede Componenti, non Regolite)
-export const ROVER_COST = 75;
-export const ROVER_COST_TYPE = 'components'; // 'regolith' | 'components'
-
-// Sistema carica autonoma del Rover (pannelli solari propri)
-export const ROVER_MAX_CHARGE = 10; // caselle percorribili con carica piena
-export const ROVER_TICKS_PER_CHARGE = 1;  // cicli fermi necessari per ricaricare 1 casella
-
-// Durata ciclo Giorno / Notte
-export const DAY_DURATION_MS = 240000; // 4 minuti di giorno
-export const NIGHT_DURATION_MS = 120000; // 2 minuti di notte
-export const GRACE_PERIOD_DAYS = 3; // Giorni senza imprevisti
-
 // cost        = costo in Regolite (0 se non richiede Regolite)
 // costComponents = costo in Componenti (0 se non richiede Componenti)
 export const BUILDINGS_INFO = {
-  // --- RIPRISTINATO: Edificio Base di Partenza ---
-  command: { 
-    name: 'COMMAND CENTER', cost: 0, costComponents: 0, 
-    energyGenDay: 0, energyGenNight: 0, energyCons: 0, 
-    isDistrictCenter: true, districtType: 'command' 
+  // --- Edificio Base di Partenza ---
+  command: {
+    name: 'COMMAND CENTER', cost: 0, costComponents: 0,
+    energyGenDay: 0, energyGenNight: 0, energyCons: 0,
+    isDistrictCenter: true, districtType: 'command'
   },
 
   // CENTRI DISTRETTO
-  habitat_hub: { name: 'HABITAT HUB', cost: 80, costComponents: 40, color: 0x22aa55, height: 35, isDistrictCenter: true, districtType: 'habitat' },
-  logistics_hub: { name: 'LOGISTICS HUB', cost: 100, costComponents: 60, color: 0x8855cc, height: 35, isDistrictCenter: true, districtType: 'logistics' },
-  mining_hub: { name: 'MINING HUB', cost: 50, costComponents: 0, color: 0xc97520, height: 35, isDistrictCenter: true, districtType: 'mining' },
-  cryo_hub: { name: 'CRYO HUB', cost: 60, costComponents: 0, color: 0x0088cc, height: 35, isDistrictCenter: true, districtType: 'ice' },
-  power_center: { name: 'POWER CENTER', cost: 50, costComponents: 25, color: 0xffd700, height: 35, isDistrictCenter: true, districtType: 'energy' },
+  habitat_hub:   { name: 'HABITAT HUB',   cost: HABITAT_HUB_COST,   costComponents: HABITAT_HUB_COST_COMP,   color: 0x22aa55, height: 35, isDistrictCenter: true, districtType: 'habitat' },
+  logistics_hub: { name: 'LOGISTICS HUB', cost: LOGISTICS_HUB_COST, costComponents: LOGISTICS_HUB_COST_COMP, color: 0x8855cc, height: 35, isDistrictCenter: true, districtType: 'logistics' },
+  mining_hub:    { name: 'MINING HUB',    cost: MINING_HUB_COST,    costComponents: MINING_HUB_COST_COMP,    color: 0xc97520, height: 35, isDistrictCenter: true, districtType: 'mining' },
+  cryo_hub:      { name: 'CRYO HUB',      cost: CRYO_HUB_COST,      costComponents: CRYO_HUB_COST_COMP,      color: 0x0088cc, height: 35, isDistrictCenter: true, districtType: 'ice' },
+  power_center:  { name: 'POWER CENTER',  cost: POWER_CENTER_COST,  costComponents: POWER_CENTER_COST_COMP,  color: 0xffd700, height: 35, isDistrictCenter: true, districtType: 'energy' },
 
   // MODULI CON HARD CAPS (maxPerDistrict: 1)
-  rover_workshop: { name: 'ROVER WORKSHOP', cost: 0, costComponents: 100, color: 0xa020f0, height: 20, energyCons: 25, maxPerDistrict: 1 },
-  isru_plant: { name: 'ISRU PLANT', cost: 0, costComponents: 40, color: 0x00ffff, height: 20, energyCons: 20, crewReq: 1, conversion: { inputRes: 'ice', inputCost: 2, outputRes: 'oxygen', outputAmount: 10 }, maxPerDistrict: 1 },
-  component_factory: { name: 'COMPONENT FACTORY', cost: 80, costComponents: 0, color: 0x4a9eff, height: 22, energyCons: 15, crewReq: 1, conversion: { inputRes: 'regolith', inputCost: 10, outputRes: 'components', outputAmount: 7 }, maxPerDistrict: 1 },
+  rover_workshop: {
+    name: 'ROVER WORKSHOP', cost: ROVER_WORKSHOP_COST, costComponents: ROVER_WORKSHOP_COST_COMP,
+    color: 0xa020f0, height: 20, energyCons: ROVER_WORKSHOP_ENERGY, maxPerDistrict: 1
+  },
+  isru_plant: {
+    name: 'ISRU PLANT', cost: ISRU_PLANT_COST, costComponents: ISRU_PLANT_COST_COMP,
+    color: 0x00ffff, height: 20, energyCons: ISRU_PLANT_ENERGY, crewReq: ISRU_CREW_REQ,
+    conversion: { inputRes: 'ice', inputCost: ISRU_ICE_INPUT, outputRes: 'oxygen', outputAmount: ISRU_OXYGEN_OUTPUT },
+    maxPerDistrict: 1
+  },
+  component_factory: {
+    name: 'COMPONENT FACTORY', cost: COMPONENT_FACTORY_COST, costComponents: COMPONENT_FACTORY_COST_COMP,
+    color: 0x4a9eff, height: 22, energyCons: COMPONENT_FACTORY_ENERGY, crewReq: COMPONENT_FACTORY_CREW_REQ,
+    conversion: { inputRes: 'regolith', inputCost: COMPONENT_FACTORY_REG_INPUT, outputRes: 'components', outputAmount: COMPONENT_FACTORY_COMP_OUTPUT },
+    maxPerDistrict: 1
+  },
 
   // MODULI STORAGE
-  h2o_tank: { name: 'H2O TANK', cost: 50, costComponents: 20, color: 0x00aacc, height: 15, energyCons: 0, o2CapBonus: 300 },
-  battery_bank: { name: 'BATTERY BANK', cost: 30, costComponents: 60, color: 0xffff00, height: 15, energyCons: 0, energyCapBonus: 100 },
+  h2o_tank:     { name: 'H2O TANK',     cost: H2O_TANK_COST,     costComponents: H2O_TANK_COST_COMP,     color: 0x00aacc, height: 15, energyCons: 0, o2CapBonus: H2O_TANK_O2_CAP_BONUS },
+  battery_bank: { name: 'BATTERY BANK', cost: BATTERY_BANK_COST, costComponents: BATTERY_BANK_COST_COMP, color: 0xffff00, height: 15, energyCons: 0, energyCapBonus: BATTERY_BANK_ENERGY_CAP_BONUS },
 
   // ALTRI MODULI
-  solar_array: { name: 'SOLAR ARRAY', cost: 25, costComponents: 0, color: 0xffa500, height: 10, energyGenDay: 30, energyGenNight: 0, alwaysOn: true },
-  rtg: { name: 'RTG', cost: 0, costComponents: 80, color: 0x800080, height: 15, energyGenDay: 35, energyGenNight: 35 },
-  hab_module: { name: 'HAB MODULE', cost: 0, costComponents: 50, color: 0x00ff00, height: 20, energyCons: 30, o2Cons: 3, crewGen: 5, alwaysOn: true },
-  botany_greenhouse: { name: 'BOTANY GREENHOUSE', cost: 50, costComponents: 40, color: 0x00ff88, height: 18, energyCons: 15, conversion: { inputRes: 'ice', inputCost: 1, outputRes: 'oxygen', outputAmount: 3 } },
-  medbay: { name: 'MEDBAY', cost: 20, costComponents: 60, color: 0xffffff, height: 18, energyCons: 10 },
-  regolith_extractor: { name: 'REGOLITH EXT.', cost: 50, costComponents: 0, color: 0xc97520, height: 18, energyCons: 10, regolithGen: 5, terrain: 'regolith', crewReq: 1 },
-  ice_extractor: { name: 'ICE EXT.', cost: 75, costComponents: 0, color: 0x00aacc, height: 18, energyCons: 15, iceGen: 5, terrain: 'ice', crewReq: 1 },
-  recycling_facility: { name: 'RECYCLING FAC.', cost: 80, costComponents: 40, color: 0x99cc77, height: 25, energyCons: 10, crewReq: 1, isPassive: true },
-  deep_drill: { name: 'DEEP DRILL', cost: 200, costComponents: 100, color: 0x8b4513, height: 25, energyCons: 30, regolithGen: 10, terrain: 'regolith', crewReq: 2 },
+  solar_array: {
+    name: 'SOLAR ARRAY', cost: SOLAR_ARRAY_COST, costComponents: SOLAR_ARRAY_COST_COMP,
+    color: 0xffa500, height: 10, energyGenDay: SOLAR_ARRAY_ENERGY_DAY, energyGenNight: SOLAR_ARRAY_ENERGY_NIGHT, alwaysOn: true
+  },
+  rtg: {
+    name: 'RTG', cost: RTG_COST, costComponents: RTG_COST_COMP,
+    color: 0x800080, height: 15, energyGenDay: RTG_ENERGY_DAY, energyGenNight: RTG_ENERGY_NIGHT
+  },
+  hab_module: {
+    name: 'HAB MODULE', cost: HAB_MODULE_COST, costComponents: HAB_MODULE_COST_COMP,
+    color: 0x00ff00, height: 20, energyCons: HAB_MODULE_ENERGY, o2Cons: HAB_MODULE_O2_CONS,
+    crewGen: HAB_MODULE_CREW_GEN, alwaysOn: true
+  },
+  botany_greenhouse: {
+    name: 'BOTANY GREENHOUSE', cost: BOTANY_GREENHOUSE_COST, costComponents: BOTANY_GREENHOUSE_COST_COMP,
+    color: 0x00ff88, height: 18, energyCons: BOTANY_GREENHOUSE_ENERGY,
+    conversion: { inputRes: 'ice', inputCost: BOTANY_ICE_INPUT, outputRes: 'oxygen', outputAmount: BOTANY_OXYGEN_OUTPUT }
+  },
+  medbay: {
+    name: 'MEDBAY', cost: MEDBAY_COST, costComponents: MEDBAY_COST_COMP,
+    color: 0xffffff, height: 18, energyCons: MEDBAY_ENERGY
+  },
+  regolith_extractor: {
+    name: 'REGOLITH EXT.', cost: REGOLITH_EXTRACTOR_COST, costComponents: REGOLITH_EXTRACTOR_COST_COMP,
+    color: 0xc97520, height: 18, energyCons: REGOLITH_EXTRACTOR_ENERGY,
+    regolithGen: REGOLITH_EXTRACTOR_GEN, terrain: 'regolith', crewReq: REGOLITH_EXTRACTOR_CREW_REQ
+  },
+  ice_extractor: {
+    name: 'ICE EXT.', cost: ICE_EXTRACTOR_COST, costComponents: ICE_EXTRACTOR_COST_COMP,
+    color: 0x00aacc, height: 18, energyCons: ICE_EXTRACTOR_ENERGY,
+    iceGen: ICE_EXTRACTOR_GEN, terrain: 'ice', crewReq: ICE_EXTRACTOR_CREW_REQ
+  },
+  recycling_facility: {
+    name: 'RECYCLING FAC.', cost: RECYCLING_FACILITY_COST, costComponents: RECYCLING_FACILITY_COST_COMP,
+    color: 0x99cc77, height: 25, energyCons: RECYCLING_FACILITY_ENERGY,
+    crewReq: RECYCLING_FACILITY_CREW_REQ, isPassive: true
+  },
+  deep_drill: {
+    name: 'DEEP DRILL', cost: DEEP_DRILL_COST, costComponents: DEEP_DRILL_COST_COMP,
+    color: 0x8b4513, height: 25, energyCons: DEEP_DRILL_ENERGY,
+    regolithGen: DEEP_DRILL_GEN, terrain: 'regolith', crewReq: DEEP_DRILL_CREW_REQ
+  },
 
-  // Altri (mantieni se necessari)
-  conduit: { name: 'UTILITY CONDUIT', cost: 5, costComponents: 0, color: 0x555555, height: 2, energyGenDay: 0, energyGenNight: 0, energyCons: 0, isPassable: true, chargeCost: 1 },
+  conduit: {
+    name: 'UTILITY CONDUIT', cost: CONDUIT_COST, costComponents: CONDUIT_COST_COMP,
+    color: 0x555555, height: 2, energyGenDay: 0, energyGenNight: 0, energyCons: 0,
+    isPassable: true, chargeCost: CONDUIT_CHARGE_COST
+  },
 };
-
-// =============================================================================
-// GIACIMENTI — parametri di generazione cluster risorse sulla mappa
-// =============================================================================
-
-// ── Giacimento Minore (Comune, ~80-85% dei depositi) ─────────────────────────
-/** Lato del bounding box del Giacimento Minore */
-export const GIACIMENTO_MINOR_SIZE = 2;
-/** Tile risorsa minime nel bounding box 2×2 */
-export const GIACIMENTO_MINOR_MIN_TILES = 2;
-/** Tile risorsa massime nel bounding box 2×2 */
-export const GIACIMENTO_MINOR_MAX_TILES = 4;
-/** Numero di Giacimenti Minori di ghiaccio da generare */
-export const GIACIMENTO_MINOR_COUNT_ICE = 12;
-/** Numero di Giacimenti Minori di regolith da generare */
-export const GIACIMENTO_MINOR_COUNT_REG = 12;
-
-// ── Giacimento Maggiore (Raro, ~15-20% dei depositi) ─────────────────────────
-/** Lato del bounding box del Giacimento Maggiore */
-export const GIACIMENTO_MAJOR_SIZE = 5;
-/** Tile risorsa minime nel bounding box 5×5 */
-export const GIACIMENTO_MAJOR_MIN_TILES = 15;
-/** Tile risorsa massime nel bounding box 5×5 */
-export const GIACIMENTO_MAJOR_MAX_TILES = 25;
-/** Numero di Giacimenti Maggiori di ghiaccio da generare */
-export const GIACIMENTO_MAJOR_COUNT_ICE = 3;
-/** Numero di Giacimenti Maggiori di regolith da generare */
-export const GIACIMENTO_MAJOR_COUNT_REG = 3;
-
-// ── Parametri comuni ──────────────────────────────────────────────────────────
-/**
- * Raggio di sicurezza (distanza Chebyshev dal centro del Modulo Comando)
- * entro cui non viene generato alcun Giacimento (né parziale né intero).
- * Valore 2 → safe zone = ±2 tile = area 5×5 attorno al Comando.
- */
-export const GIACIMENTO_CMD_SAFE_RADIUS = 2;
-/** Tentativi massimi per piazzare ogni singolo Giacimento prima di rinunciare */
-export const GIACIMENTO_MAX_ATTEMPTS = 3000;
-
-// Dimensioni pannello UI (corrispondono alle var CSS --sidebar-w / --top-bar-h)
-export const SIDEBAR_W = 260;
-export const TOP_BAR_H = 48;
 
 // =============================================================================
 // SISTEMA DISTRETTI
 // =============================================================================
 
 export const DISTRICT_TYPES = {
-  // --- RIPRISTINATO: Distretto Base di Partenza ---
   command: {
     label: 'Command District',
     centerBuilding: 'command',
-    allowedModules: ['hab_module'], // Rimosso 'rover_workshop'
+    allowedModules: ['hab_module'],
     terrainReq: null,
   },
   habitat: {
@@ -189,7 +242,6 @@ export const DISTRICT_TYPES = {
   },
 };
 
-
 /**
  * Slot offset del distretto rispetto al centro (in ordine NW N NE W E SW S SE).
  * Usati per calcolare le 8 posizioni modulo attorno al centro 3×3.
@@ -204,3 +256,7 @@ export const DISTRICT_SLOT_OFFSETS = [
   { dc: 0, dr: 1 }, // 6 S
   { dc: 1, dr: 1 }, // 7 SE
 ];
+
+// Dimensioni pannello UI (corrispondono alle var CSS --sidebar-w / --top-bar-h)
+export const SIDEBAR_W = 260;
+export const TOP_BAR_H = 48;

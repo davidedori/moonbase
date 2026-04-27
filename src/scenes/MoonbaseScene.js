@@ -4303,6 +4303,7 @@ export class MoonbaseScene extends Phaser.Scene {
         ice: this.economy.ice,
         oxygen: this.economy.oxygen,
         components: this.economy.components,
+        energyStored: this.economy.energyStored, // <--- AGGIUNGI QUESTA
         isDay: this.economy.isDay,
         emergencyTimer: this.economy.emergencyTimer,
         deadlockTimer: this.economy.deadlockTimer
@@ -4468,6 +4469,10 @@ export class MoonbaseScene extends Phaser.Scene {
     this.economy.syncDayNight(eco.isDay);
     this.economy.emergencyTimer = eco.emergencyTimer || 0;
     this.economy.deadlockTimer = eco.deadlockTimer || 0;
+    // Restore storage energy
+    if (eco.energyStored !== undefined) {
+      this.economy.energyStored = eco.energyStored;
+    }
 
     // --- 5. Ripristina esplorazione ---
     for (const { col, row } of data.explored) {

@@ -46,7 +46,7 @@ export class EconomyManager {
     this.energyConsumed = 0;
     this.energyRequired = 0; // domanda potenziale totale (per rilevare deficit)
     this.energyStored = 0;
-    this.maxEnergy = 0;
+    this.maxEnergy = 0; // FIX: Base capacity inizializzata a 0 (prima era 100)
 
     // --- Equipaggio ---
     this.crewTotal = 0;
@@ -117,6 +117,9 @@ export class EconomyManager {
     this.stats.totalDaysElapsed++;
     this.emitter.emit('day-night-changed', { isDay: true });
 
+    // SOLO PROIEZIONI: la UI si aggiorna, ma le risorse reali non si toccano
+    this.updateProjections();
+
     // FIX: Controlla se il tween esiste ed è ancora in riproduzione prima di fermarlo
     if (this._dayNightTween && this._dayNightTween.isPlaying()) {
       this._dayNightTween.stop();
@@ -135,6 +138,9 @@ export class EconomyManager {
   startNightTimer() {
     this.isDay = false;
     this.emitter.emit('day-night-changed', { isDay: false });
+
+    // SOLO PROIEZIONI: la UI si aggiorna, ma le risorse reali non si toccano
+    this.updateProjections();
 
     // FIX: Stesso controllo di sicurezza per la notte
     if (this._dayNightTween && this._dayNightTween.isPlaying()) {
@@ -190,6 +196,19 @@ export class EconomyManager {
   }
 
   processEconomyTick() {
+    // Start-of-tick hard caps recalculation to reflect newly constructed batteries immediately
+    this.maxOxygen = INITIAL_MAX_OXYGEN;
+    this.maxEnergy = 0; // FIX: Base capacity a 0 (prima era 100)
+    this.maxRovers = INITIAL_MAX_ROVERS;
+    for (const b of this.buildings) {
+      if (b.connected === false || b.isConstructing) continue;
+      if (BUILDINGS_INFO[b.type]?.isDistrictCenter) b._econActive = true;
+      if (b.type === 'h2o_tank') this.maxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
+      if (b.type === 'battery_bank') this.maxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
+      if (b.type === 'rover_workshop' && b._econActive) this.maxRovers += ROVER_WORKSHOP_BONUS_ROVERS;
+    }
+    // Ensure energyStored respects the new max energy immediately
+    this.energyStored = Math.max(0, Math.min(this.maxEnergy, this.energyStored));
 
 
     // --- Snapshot pre-tick per calcolo delta ---
@@ -197,6 +216,7 @@ export class EconomyManager {
     this._prevIce = this.ice;
     this._prevOxygen = this.oxygen;
     this._prevComponents = this.components;
+    // (Prev energy storage snapshot removed) 
 
     let totalO2Produced = 0;
     let totalO2Consumed = 0;
@@ -231,16 +251,14 @@ export class EconomyManager {
     this.energyRequired = 0;
     for (const b of this.buildings) {
       if (b.connected === false || b.isPowered === false || b.isConstructing) continue;
-
-      if (b.type === 'hab_module') this.energyRequired += BUILDINGS_INFO.hab_module.energyCons;
-      else if (b.type === 'isru_plant') this.energyRequired += BUILDINGS_INFO.isru_plant.energyCons;
-      else if (b.type === 'regolith_extractor') this.energyRequired += BUILDINGS_INFO.regolith_extractor.energyCons;
-      else if (b.type === 'ice_extractor') this.energyRequired += BUILDINGS_INFO.ice_extractor.energyCons;
-      else if (b.type === 'component_factory') this.energyRequired += BUILDINGS_INFO.component_factory.energyCons;
-      else if (b.type === 'botany_greenhouse') this.energyRequired += BUILDINGS_INFO.botany_greenhouse.energyCons;
-      else if (b.type === 'medbay') this.energyRequired += BUILDINGS_INFO.medbay.energyCons;
-      else if (b.type === 'deep_drill') this.energyRequired += BUILDINGS_INFO.deep_drill.energyCons;
-      else if (b.type === 'rover_workshop') this.energyRequired += BUILDINGS_INFO.rover_workshop.energyCons;
+      const info = BUILDINGS_INFO[b.type];
+      if (info && info.energyCons) {
+        // Sinergia Comando per il calcolo del fabbisogno teorico
+        if (b.type === 'hab_module' && b.district && b.district.type === 'command' && b.district.connected) {
+          continue;
+        }
+        this.energyRequired += info.energyCons;
+      }
     }
 
     // --- 3. FIX: STORAGE ENERGETICO SOSTITUITO INTERAMENTE ---
@@ -257,7 +275,11 @@ export class EconomyManager {
         active = true;
         this.crewTotal += COMMAND_CREW_GEN;
       } else {
-        const energyCost = BUILDINGS_INFO.hab_module.energyCons;
+        let energyCost = BUILDINGS_INFO.hab_module.energyCons;
+        // Sinergia Comando: se Habitat è nel distretto Command e connesso, costo energetico è 0
+        if (b.district && b.district.type === 'command' && b.district.connected) {
+          energyCost = 0; // Sinergia Comando: Supporto vitale gratuito
+        }
         if (energyPool >= energyCost) {
           energyPool -= energyCost;
           this.energyConsumed += energyCost;
@@ -368,10 +390,7 @@ export class EconomyManager {
       b._econActive = active;
     }
 
-    // --- FIX: Ricalcolo Finale Batteria ---
-    const energyExcess = Math.max(0, energyPool - this.maxEnergy);
-    this.energyOverflow = energyExcess;
-    this.energyStored = Math.max(0, Math.min(this.maxEnergy, energyPool));
+    // (Hard caps finalization moved to tick start; removed here to avoid desynchronization)
 
     // --- Rover ---
     for (const r of this.rovers) {
@@ -396,20 +415,7 @@ export class EconomyManager {
 
 
 
-    // --- Ricalcolo Hard Caps (Post-Consumo) ---
-    this.maxOxygen = INITIAL_MAX_OXYGEN;
-    this.maxEnergy = 0;
-    this.maxRovers = INITIAL_MAX_ROVERS;
-
-    for (const b of this.buildings) {
-      // Contiamo solo edifici attivi e alimentati (non in standby energetico)
-      if (b.connected === false || b.isConstructing) continue;
-
-      if (b.type === 'h2o_tank') this.maxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
-      if (b.type === 'battery_bank') this.maxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
-      // Il Workshop fornisce rover extra SOLO se è alimentato (_econActive)
-      if (b.type === 'rover_workshop' && b._econActive) this.maxRovers += ROVER_WORKSHOP_BONUS_ROVERS;
-    }
+    // Hard caps post-consume block moved to tick start
 
     // --- Gestione Ibernazione/Risveglio Rover (Triage) ---
     const activeRovers = this.rovers.filter(r => !r.isWreck);
@@ -442,13 +448,17 @@ export class EconomyManager {
     // Il delta ora mostra il flusso netto, indipendentemente dal limite del serbatoio
     this.deltaO2 = totalO2Produced - totalO2Consumed;
 
-    // Solo ora applichiamo il clamp per la gestione dello stock
-    this.oxygen = Math.max(0, Math.min(this.oxygen, this.maxOxygen));
+    // --- FIX: RICARICA / SCARICA STORAGE ENERGETICO ---
+    // Alla fine del consumo, "energyPool" contiene esattamente l'energia avanzata 
+    // (Produzione + Storage Precedente - Consumo Attuale). 
+    // La blocchiamo entro il limite massimo delle batterie (maxEnergy).
+    // Rete: deltaEnergy è bilancio netto tra produzione e energia POTENZIALE (energyRequired)
+    this.deltaEnergy = this.energyProduced - this.energyRequired;
+    this.energyStored = Math.max(0, Math.min(this.maxEnergy, energyPool));
 
     this.deltaReg = this.regolith - this._prevRegolith;
     this.deltaIce = this.ice - this._prevIce;
     this.deltaComp = this.components - this._prevComponents;
-    this.deltaEnergy = this.energyProduced - this.energyConsumed;
 
     // Emergenze
     if (this.oxygen <= 0) {
@@ -604,6 +614,7 @@ export class EconomyManager {
 
   updateProjections() {
     let simRegolith = this.regolith;
+    // Rimosso _prevEnergyStored: deltaEnergy calcolato dinamicamente in rete
     let simIce = this.ice;
 
     let simMaxOxygen = INITIAL_MAX_OXYGEN;
@@ -654,10 +665,14 @@ export class EconomyManager {
         active = true;
         this.crewTotal += COMMAND_CREW_GEN;
       } else {
-        const cost = BUILDINGS_INFO.hab_module.energyCons;
-        if (simEnergyPool >= cost) {
-          simEnergyPool -= cost;
-          this.energyConsumed += cost;
+        let energyCost = BUILDINGS_INFO.hab_module.energyCons;
+        // Sinergia Comando: se Habitat è nel distretto Command e connesso, costo energetico è 0
+        if (b.district && b.district.type === 'command' && b.district.connected) {
+          energyCost = 0; // Sinergia Comando: Supporto vitale gratuito
+        }
+        if (simEnergyPool >= energyCost) {
+          simEnergyPool -= energyCost;
+          this.energyConsumed += energyCost;
           simTotalO2Consumed += BUILDINGS_INFO.hab_module.o2Cons;
           this.crewTotal += BUILDINGS_INFO.hab_module.crewGen;
           active = true;
@@ -764,8 +779,10 @@ export class EconomyManager {
     }
 
     this.deltaO2 = simTotalO2Produced - simTotalO2Consumed;
-    this.deltaEnergy = this.energyProduced - this.energyConsumed;
+    // FIX: Usa energyRequired anche qui per la UI in tempo reale
+    this.deltaEnergy = this.energyProduced - this.energyRequired;
     this.maxOxygen = simMaxOxygen;
+    this.maxEnergy = simMaxEnergy;
     this.maxRovers = simMaxRovers;
 
     // Trigger aggiornamenti visivi immediati!

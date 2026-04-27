@@ -536,37 +536,38 @@ export class UIManager {
     this._setChip('res-comp-val', 'res-comp-delta', components, deltaComp ?? 0);
     this._setChip('res-ice-val', 'res-ice-delta', ice, deltaIce);
 
-    // --- LOGICA OXYGEN: CURRENT / MAX con DELTA FLUIDO ---
-    const o2ValEl = document.getElementById('res-o2-val');
-    const o2DeltaEl = document.getElementById('res-o2-delta');
+    // --- LOGICA OXYGEN: NET & STORAGE BAR ---
+    const o2NetEl = document.getElementById('res-o2-net');
+    const o2StorageEl = document.getElementById('res-o2-storage');
+    const o2BarEl = document.getElementById('res-o2-bar');
 
-    if (o2ValEl) {
-      o2ValEl.innerText = `${Math.round(oxygen)} / ${maxOxygen}`;
-      // Cambia colore se siamo vicini al limite (Full spectral blue)
-      o2ValEl.style.color = (oxygen >= maxOxygen) ? '#58a6ff' : 'var(--f0f0fa)';
+    if (o2NetEl) {
+      const signO2 = deltaO2 >= 0 ? '+' : '';
+      o2NetEl.innerText = `${signO2}${Math.round(deltaO2)}`;
+      // Puoi usare i colori rosso/bianco sulla scritta principale per far capire subito se la produzione è in calo
+      o2NetEl.style.color = deltaO2 < 0 ? 'var(--red)' : 'var(--white)'; 
+    }
+    if (o2StorageEl && o2BarEl) {
+      o2StorageEl.innerText = `${Math.round(oxygen)} / ${maxOxygen}`;
+      const o2Pct = maxOxygen > 0 ? Math.min(100, Math.max(0, (oxygen / maxOxygen) * 100)) : 0;
+      o2BarEl.style.width = `${o2Pct}%`;
     }
 
-    if (o2DeltaEl) {
-      // Mostra sempre il delta produttivo, anche se il serbatoio è pieno
-      const sign = deltaO2 > 0 ? '+' : '';
-      o2DeltaEl.innerText = `(${sign}${Math.round(deltaO2)})`;
-      o2DeltaEl.className = 'res-delta ' + (deltaO2 > 0 ? 'positive' : deltaO2 < 0 ? 'negative' : 'zero');
+    // --- LOGICA ENERGY: NET & STORAGE BAR ---
+    const nrgNetEl = document.getElementById('res-nrg-net');
+    const nrgStorageEl = document.getElementById('res-nrg-storage');
+    const nrgBarEl = document.getElementById('res-nrg-bar');
+
+    if (nrgNetEl) {
+      const signNrg = deltaEnergy >= 0 ? '+' : '';
+      nrgNetEl.innerText = `${signNrg}${Math.round(deltaEnergy)}`;
+      nrgNetEl.style.color = deltaEnergy < 0 ? 'var(--red)' : 'var(--white)';
     }
-
-    // --- LOGICA ENERGY: PRODUCTION + STORAGE ---
-    const isDischarging = energyRequired > energyProduced;
-    const energyLabel = isDischarging ?
-      `<span class="blink" style="color:#f85149">[DISCHARGING]</span>` :
-      `NET: +${Math.max(0, energyProduced - energyRequired)}`;
-
-    this._setEl('res-nrg-val', `STORED: ${Math.round(energyStored)} / ${maxEnergy}`);
-
-    const nrgDeltaEl = document.getElementById('res-nrg-delta');
-    if (nrgDeltaEl) {
-      nrgDeltaEl.innerHTML = energyLabel;
-      nrgDeltaEl.className = 'res-delta ' + (isDischarging ? 'negative' : 'positive');
+    if (nrgStorageEl && nrgBarEl) {
+      nrgStorageEl.innerText = `${Math.round(energyStored)} / ${maxEnergy}`;
+      const nrgPct = maxEnergy > 0 ? Math.min(100, Math.max(0, (energyStored / maxEnergy) * 100)) : 0;
+      nrgBarEl.style.width = `${nrgPct}%`;
     }
-
 
     const chipNrg = document.getElementById('chip-nrg');
     const blackoutEl = document.getElementById('blackout-warning');
@@ -574,13 +575,16 @@ export class UIManager {
     chipNrg?.classList.toggle('alert-pulse', isBlackout);
     if (blackoutEl) blackoutEl.style.display = isBlackout ? 'block' : 'none';
 
-    this._setEl('res-crew-val', `${crewEmployed} / ${crewTotal}`);
     const crewFree = crewTotal - crewEmployed;
-    const crewDeltaEl = document.getElementById('res-crew-delta');
-    if (crewDeltaEl) {
-      crewDeltaEl.innerText = `(+${crewFree})`;
-      crewDeltaEl.className = 'res-delta ' + (crewFree > 0 ? 'positive' : 'zero');
+    const crewNetEl = document.getElementById('res-crew-net');
+    if (crewNetEl) {
+      crewNetEl.innerText = `${crewTotal}`;
+      crewNetEl.style.color = crewFree <= 0 ? 'var(--red)' : 'var(--white)';
     }
+    const crewBarEl = document.getElementById('res-crew-bar');
+    if (crewBarEl) crewBarEl.style.width = crewTotal > 0 ? `${Math.min(100, (crewFree / crewTotal) * 100)}%` : '0%';
+    const crewStorageEl = document.getElementById('res-crew-storage');
+    if (crewStorageEl) crewStorageEl.innerText = `${crewFree} / ${crewTotal}`;
     const crewShort = crewEmployed >= crewTotal && crewTotal > 0;
     document.getElementById('chip-crew')?.classList.toggle('alert-pulse', crewShort);
     const crewWarnEl = document.getElementById('crew-warning');
@@ -687,8 +691,6 @@ export class UIManager {
 
     // 3. Colore e Stato (Technical Accents)
     const activeColor = isDay ? '#ffd700' : '#58a6ff';
-    container.style.borderLeftColor = activeColor;
-
     const phaseLabel = isDay ? 'DAY' : 'NIGHT';
     // Potremmo usare una variabile CSS per il colore d'accento
     container.style.setProperty('--phase-accent', activeColor);
@@ -797,7 +799,7 @@ export class UIManager {
     this._setEl(valId, Math.round(value));
     const deltaEl = document.getElementById(deltaId);
     if (deltaEl) {
-      const sign = delta > 0 ? '+' : '';
+      const sign = delta >= 0 ? '+' : '';
       deltaEl.innerText = `(${sign}${Math.round(delta)})`;
       deltaEl.className = 'res-delta ' + (delta > 0 ? 'positive' : delta < 0 ? 'negative' : 'zero');
     }

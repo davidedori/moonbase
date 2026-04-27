@@ -55,7 +55,7 @@ export const ROVER_WRECK_RECYCLE_COMP = 20;   // componenti ottenuti riciclando 
 export const INITIAL_EXPLORED_SIZE = 5;    // zona 5×5 esplorata all'avvio
 
 // === GIACIMENTI — CAPACITÀ ===
-export const DEPOSIT_MIN_CAPACITY = 100;
+export const DEPOSIT_MIN_CAPACITY = 50;
 export const DEPOSIT_MAX_CAPACITY = 300;
 
 // === GIACIMENTI — FALLOFF DISTANZA ===

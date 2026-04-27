@@ -109,7 +109,7 @@ export const COMPONENT_FACTORY_COST = 80; export const COMPONENT_FACTORY_COST_CO
 
 // Storage
 export const H2O_TANK_COST = 50; export const H2O_TANK_COST_COMP = 20;
-export const BATTERY_BANK_COST = 30; export const BATTERY_BANK_COST_COMP = 60;
+export const BATTERY_BANK_COST = 30; export const BATTERY_BANK_COST_COMP = 30;
 
 // Produzione energia
 export const SOLAR_ARRAY_COST = 25; export const SOLAR_ARRAY_COST_COMP = 0;

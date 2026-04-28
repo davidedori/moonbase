@@ -113,6 +113,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
         if (!this.isWreck && !this.moving && this._economy.isDay) {
           this.charge = Math.min(ROVER_MAX_CHARGE, this.charge + 1);
           this._updateChargeBar();
+          if (this.scene.selectedEntity?.ref === this) this.scene._updateContextPanel();
         }
       },
     });
@@ -302,6 +303,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
     this.charge--;
     this._movedThisTick = true;
     this._updateChargeBar();
+    if (this.scene.selectedEntity?.ref === this) this.scene._updateContextPanel();
 
     const nextStep = this._path.shift();
     const prevCol = this.col;

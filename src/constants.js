@@ -61,6 +61,12 @@ import {
   RECYCLING_FACILITY_CREW_REQ, DEEP_DRILL_CREW_REQ,
   // Conduit
   CONDUIT_CHARGE_COST,
+  // Cap risorse primarie
+  INITIAL_MAX_REGOLITH, INITIAL_MAX_ICE, INITIAL_MAX_COMPONENTS,
+  REGOLITH_DEPOT_REG_CAP_BONUS, ICE_SILO_ICE_CAP_BONUS, COMPONENT_DEPOT_COMP_CAP_BONUS,
+  REGOLITH_DEPOT_COST, REGOLITH_DEPOT_COST_COMP,
+  ICE_SILO_COST, ICE_SILO_COST_COMP,
+  COMPONENT_DEPOT_COST, COMPONENT_DEPOT_COST_COMP,
 } from './balance.js';
 
 // Re-export per compatibilità con i file che importano da constants.js
@@ -123,7 +129,7 @@ export const BUILDINGS_INFO = {
   habitat_hub:   { name: 'HABITAT HUB',   cost: HABITAT_HUB_COST,   costComponents: HABITAT_HUB_COST_COMP,   color: 0x22aa55, height: 35, isDistrictCenter: true, districtType: 'habitat' },
   logistics_hub: { name: 'LOGISTICS HUB', cost: LOGISTICS_HUB_COST, costComponents: LOGISTICS_HUB_COST_COMP, color: 0x8855cc, height: 35, isDistrictCenter: true, districtType: 'logistics' },
   mining_hub:    { name: 'MINING HUB',    cost: MINING_HUB_COST,    costComponents: MINING_HUB_COST_COMP,    color: 0xc97520, height: 35, isDistrictCenter: true, districtType: 'mining' },
-  cryo_hub:      { name: 'CRYO HUB',      cost: CRYO_HUB_COST,      costComponents: CRYO_HUB_COST_COMP,      color: 0x0088cc, height: 35, isDistrictCenter: true, districtType: 'ice' },
+  cryo_hub:      { name: 'CRYO HUB',      cost: CRYO_HUB_COST,      costComponents: CRYO_HUB_COST_COMP,      color: 0x0088cc, height: 35, isDistrictCenter: true, districtType: 'cryo' },
   power_center:  { name: 'POWER CENTER',  cost: POWER_CENTER_COST,  costComponents: POWER_CENTER_COST_COMP,  color: 0xffd700, height: 35, isDistrictCenter: true, districtType: 'energy' },
 
   // MODULI CON HARD CAPS (maxPerDistrict: 1)
@@ -145,8 +151,11 @@ export const BUILDINGS_INFO = {
   },
 
   // MODULI STORAGE
-  h2o_tank:     { name: 'H2O TANK',     cost: H2O_TANK_COST,     costComponents: H2O_TANK_COST_COMP,     color: 0x00aacc, height: 15, energyCons: 0, o2CapBonus: H2O_TANK_O2_CAP_BONUS },
-  battery_bank: { name: 'BATTERY BANK', cost: BATTERY_BANK_COST, costComponents: BATTERY_BANK_COST_COMP, color: 0xffff00, height: 15, energyCons: 0, energyCapBonus: BATTERY_BANK_ENERGY_CAP_BONUS },
+  h2o_tank:        { name: 'H2O TANK',        cost: H2O_TANK_COST,        costComponents: H2O_TANK_COST_COMP,        color: 0x00aacc, height: 15, energyCons: 0, o2CapBonus: H2O_TANK_O2_CAP_BONUS },
+  battery_bank:    { name: 'BATTERY BANK',    cost: BATTERY_BANK_COST,    costComponents: BATTERY_BANK_COST_COMP,    color: 0xffff00, height: 15, energyCons: 0, energyCapBonus: BATTERY_BANK_ENERGY_CAP_BONUS },
+  regolith_depot:  { name: 'REGOLITH DEPOT',  cost: REGOLITH_DEPOT_COST,  costComponents: REGOLITH_DEPOT_COST_COMP,  color: 0xc97520, height: 15, energyCons: 0, regolithCapBonus: REGOLITH_DEPOT_REG_CAP_BONUS },
+  ice_silo:        { name: 'ICE SILO',        cost: ICE_SILO_COST,        costComponents: ICE_SILO_COST_COMP,        color: 0x00aacc, height: 15, energyCons: 0, iceCapBonus: ICE_SILO_ICE_CAP_BONUS },
+  component_depot: { name: 'COMPONENT DEPOT', cost: COMPONENT_DEPOT_COST, costComponents: COMPONENT_DEPOT_COST_COMP, color: 0x4a9eff, height: 15, energyCons: 0, componentCapBonus: COMPONENT_DEPOT_COMP_CAP_BONUS },
 
   // ALTRI MODULI
   solar_array: {
@@ -209,36 +218,48 @@ export const DISTRICT_TYPES = {
     centerBuilding: 'command',
     allowedModules: ['hab_module'],
     terrainReq: null,
+    icon: 'landmark',
+    cssVar: '--col-district-command',
   },
   habitat: {
     label: 'Habitat District',
     centerBuilding: 'habitat_hub',
     allowedModules: ['hab_module', 'botany_greenhouse', 'medbay'],
     terrainReq: null,
+    icon: 'home',
+    cssVar: '--col-district-habitat',
   },
   logistics: {
     label: 'Logistics District',
     centerBuilding: 'logistics_hub',
-    allowedModules: ['rover_workshop', 'recycling_facility'],
+    allowedModules: ['rover_workshop', 'recycling_facility', 'component_depot'],
     terrainReq: null,
+    icon: 'package',
+    cssVar: '--col-district-logistics',
   },
   mining: {
     label: 'Mining District',
     centerBuilding: 'mining_hub',
-    allowedModules: ['regolith_extractor', 'component_factory', 'deep_drill'],
+    allowedModules: ['regolith_extractor', 'component_factory', 'deep_drill', 'regolith_depot'],
     terrainReq: 'borders_regolith',
+    icon: 'pickaxe',
+    cssVar: '--col-district-mining',
   },
-  ice: {
+  cryo: {
     label: 'Cryo District',
     centerBuilding: 'cryo_hub',
-    allowedModules: ['ice_extractor', 'isru_plant', 'h2o_tank'],
+    allowedModules: ['ice_extractor', 'isru_plant', 'h2o_tank', 'ice_silo'],
     terrainReq: 'borders_ice',
+    icon: 'droplets',
+    cssVar: '--col-district-cryo',
   },
   energy: {
     label: 'Energy District',
     centerBuilding: 'power_center',
     allowedModules: ['solar_array', 'rtg', 'battery_bank'],
     terrainReq: null,
+    icon: 'zap',
+    cssVar: '--col-district-energy',
   },
 };
 

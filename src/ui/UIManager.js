@@ -51,49 +51,50 @@ function refreshIcons() {
  * Genera le righe di dettaglio costi/produzione per il bottone di costruzione.
  */
 function _buildCostLines(type, info) {
-  const parts = [];
+  // Span inline-flex: icona e numero attaccati, spazio gestito dal gap del parent
+  const S = (color, iconName, val) =>
+    `<span style="color:${color};display:inline-flex;align-items:center;gap:2px;">${ico(iconName, 12)}${val}</span>`;
+
+  const costParts = [];
+  const effectParts = [];
 
   if (info.cost > 0)
-    parts.push(`<span style="color:var(--col-reg)">${ico('layers', 12)} ${info.cost} REG</span>`);
+    costParts.push(S('var(--col-reg)', 'layers', info.cost));
   if (info.costComponents > 0)
-    parts.push(`<span style="color:var(--col-comp)">${ico('cpu', 12)} ${info.costComponents} COMP</span>`);
+    costParts.push(S('var(--col-comp)', 'cpu', info.costComponents));
 
   if (info.energyGenDay > 0) {
-    const extra = info.energyGenNight > 0 ? '' : ` ${ico('sun', 12)}`;
-    parts.push(`<span style="color:var(--green)">${ico('zap', 12)}${extra} +${info.energyGenDay} E</span>`);
+    const dayOnly = !info.energyGenNight || info.energyGenNight === 0;
+    effectParts.push(S('var(--green)', 'zap', `+${info.energyGenDay}`) + (dayOnly ? ico('sun', 10) : ''));
+    if (info.energyGenNight > 0 && info.energyGenNight !== info.energyGenDay)
+      effectParts.push(S('var(--col-nrg)', 'zap', `+${info.energyGenNight}`) + ico('moon', 10));
   }
-  if (info.regolithGen > 0)
-    parts.push(`<span style="color:var(--col-reg)">${ico('layers', 12)} +${info.regolithGen}/TICK</span>`);
-  if (info.iceGen > 0)
-    parts.push(`<span style="color:var(--col-ice)">${ico('snowflake', 12)} +${info.iceGen}/TICK</span>`);
-  if (info.crewGen > 0)
-    parts.push(`<span style="color:var(--col-crew)">${ico('users', 12)} +${info.crewGen}</span>`);
+  if (info.regolithGen > 0)  effectParts.push(S('var(--col-reg)',  'layers',    `+${info.regolithGen}`));
+  if (info.iceGen > 0)       effectParts.push(S('var(--col-ice)',  'snowflake', `+${info.iceGen}`));
+  if (info.crewGen > 0)      effectParts.push(S('var(--col-crew)', 'users',     `+${info.crewGen}`));
+  if (info.o2CapBonus > 0)   effectParts.push(S('var(--col-o2)',   'wind',      `+${info.o2CapBonus}`));
+  if (info.energyCapBonus > 0) effectParts.push(S('var(--col-nrg)', 'battery-full', `+${info.energyCapBonus}`));
   if (info.conversion) {
     const { inputRes, inputCost, outputRes, outputAmount } = info.conversion;
-    const inM = RES_META[inputRes] ?? { icon: 'circle', label: inputRes, color: 'inherit' };
-    const outM = RES_META[outputRes] ?? { icon: 'circle', label: outputRes, color: 'inherit' };
-    parts.push(
-      `<span style="color:var(--text-dim)">` +
-      `<span style="color:${inM.color}">${ico(inM.icon, 12)} ${inputCost}</span>` +
-      ` ${ico('arrow-right', 12)} ` +
-      `<span style="color:${outM.color}">${ico(outM.icon, 12)} ${outputAmount}</span>/ciclo` +
+    const inM  = RES_META[inputRes]  ?? { icon: 'circle', color: 'inherit' };
+    const outM = RES_META[outputRes] ?? { icon: 'circle', color: 'inherit' };
+    effectParts.push(
+      `<span style="display:inline-flex;align-items:center;gap:3px;color:var(--text-dim)">` +
+      S(inM.color,  inM.icon,  inputCost) +
+      ico('arrow-right', 10) +
+      S(outM.color, outM.icon, outputAmount) +
       `</span>`
     );
   }
+  if (info.energyCons > 0)  effectParts.push(S('var(--red)',       'zap',  `−${info.energyCons}`));
+  if (info.o2Cons > 0)      effectParts.push(S('var(--red)',       'wind', `−${info.o2Cons}`));
+  if (info.crewReq > 0)     effectParts.push(S('var(--text-dim)', 'user', `×${info.crewReq}`));
+  if (info.terrain === 'regolith') effectParts.push(S('var(--col-reg)', 'map-pin', ''));
+  if (info.terrain === 'ice')      effectParts.push(S('var(--col-ice)', 'map-pin', ''));
 
-  if (info.energyCons > 0)
-    parts.push(`<span style="color:var(--red)">${ico('zap', 12)} −${info.energyCons} E</span>`);
-  if (info.o2Cons > 0)
-    parts.push(`<span style="color:var(--red)">${ico('wind', 12)} −${info.o2Cons}/TICK</span>`);
-  if (info.crewReq > 0)
-    parts.push(`<span style="color:var(--text-dim)">${ico('user', 12)} ×${info.crewReq}</span>`);
-
-  if (info.terrain === 'regolith')
-    parts.push(`<span style="color:var(--text-dim)">${ico('map-pin', 12)} ONLY REGOLITH</span>`);
-  if (info.terrain === 'ice')
-    parts.push(`<span style="color:var(--col-ice)">${ico('map-pin', 12)} ONLY ICE</span>`);
-
-  return parts.join(' ');
+  const sep = costParts.length > 0 && effectParts.length > 0
+    ? [`<span style="color:var(--ghost-border-str)">·</span>`] : [];
+  return [...costParts, ...sep, ...effectParts].join('');
 }
 
 function canBuildAnything(buildableTypes, regolith, components) {
@@ -209,6 +210,8 @@ export class UIManager {
     actionsEl.innerHTML = '';
     warningsEl.innerHTML = '';
     previewEl.src = '';
+    const distIconEl = document.getElementById('ctx-district-icon');
+    if (distIconEl) distIconEl.innerHTML = '';
 
     sidebarEl.classList.add('visible');
 
@@ -218,28 +221,66 @@ export class UIManager {
     // ── ROVER ─────────────────────────────────────────────────────────────────
     if (entity.type === 'rover') {
       const rover = entity.ref;
-      nameEl.innerText = 'Rover';
+      nameEl.innerHTML = `Rover <span style="color:var(--text-dim);font-size:0.6rem;font-weight:400;">${ico('map-pin', 9)} ${rover.col}, ${rover.row}</span>`;
       previewEl.src = './graphics/rover-NE.png';
 
       const maxCharge = rover.maxCharge ?? 10;
-      statsEl.innerHTML = `
-        <div>${ico('bolt')} Condition: ${Math.round(rover.durability ?? 100)}%</div>
-        <div>${ico('battery')} Charge: ${rover.charge} / ${maxCharge}</div>
-        <div>${ico('map-pin')} Position: (${rover.col}, ${rover.row})</div>
-      `;
-
       const powered = rover.isPowered !== false;
-      const btnPower = document.createElement('button');
-      btnPower.className = 'ctx-btn';
-      btnPower.innerHTML = powered ? `${ico('power-off')} POWER OFF` : `${ico('power')} POWER ON`;
-      btnPower.addEventListener('click', () => opts.onTogglePower?.(rover));
-      actionsEl.appendChild(btnPower);
+
+      // Status badge
+      const roverState = rover.isWreck ? 'wreck' : !powered ? 'off' : 'active';
+      const roverStateLabel = { wreck: 'WRECK', off: 'OFFLINE', active: 'ONLINE' }[roverState];
+      const roverStateIcon  = { wreck: 'skull', off: 'power-off', active: 'check-circle' }[roverState];
+
+      // Charge
+      const chargePct = maxCharge > 0 ? Math.min(100, (rover.charge / maxCharge) * 100) : 0;
+      const chargeColor = chargePct > 60 ? 'var(--green)' : chargePct > 30 ? 'var(--yellow)' : 'var(--red)';
+
+      // Condition
+      const durability = rover.durability ?? 100;
+
+      // Stile riga comune (barra inline senza chip)
+      const BAR = (pct, color) => `
+        <div style="display:flex;align-items:center;gap:6px;margin-top:3px;">
+          <div style="flex:1;height:2px;background:rgba(255,255,255,0.12);border-radius:2px;overflow:hidden;">
+            <div style="height:100%;border-radius:2px;transition:width 0.3s ease;width:${pct}%;background:${color};"></div>
+          </div>
+          <span class="chip-mini-text">${Math.round(pct)}%</span>
+        </div>`;
+
+      statsEl.innerHTML = `
+        <div><span class="ctx-status-badge ${roverState}">${ico(roverStateIcon, 11)} ${roverStateLabel}</span></div>
+
+        <div id="_rover-power-toggle" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;">
+          <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
+          <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>
+        </div>
+
+        <div style="padding:4px 0;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('battery', 13)} <span style="color:${chargeColor};font-weight:700">${rover.charge}</span><span style="color:var(--text-dim);font-size:0.63rem">CHARGE</span></div>
+          ${BAR(chargePct, chargeColor)}
+        </div>
+
+        <div style="padding:4px 0;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('shield', 13)} <span style="color:#58a6ff;font-weight:700">${Math.round(durability)}%</span><span style="color:var(--text-dim);font-size:0.63rem">CONDITION</span></div>
+          ${BAR(durability, '#58a6ff')}
+        </div>`;
+
+      // Wire click sul toggle dopo aver scritto l'innerHTML
+      statsEl.querySelector('#_rover-power-toggle')?.addEventListener('click', () => opts.onTogglePower?.(rover));
 
       const header = document.createElement('div');
       header.className = 'section-header';
       header.style.marginTop = '8px';
       header.innerText = 'CONSTRUCTION';
       actionsEl.appendChild(header);
+
+      if (!powered) {
+        const powerWarn = document.createElement('div');
+        powerWarn.style.cssText = 'display:flex;align-items:center;gap:5px;padding:3px 0;font-family:"Space Mono","Courier New",monospace;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);';
+        powerWarn.innerHTML = `${ico('zap-off', 11)} POWER ON TO BUILD`;
+        actionsEl.appendChild(powerWarn);
+      }
 
       if (opts.damagedConduit) {
         const repairCost = BUILDINGS_INFO['conduit']?.cost ?? 5;
@@ -271,16 +312,20 @@ export class UIManager {
         btn.disabled = !powered || !canAfford || !canBuild;
 
         const iconName = BUILDING_ICONS[type] ?? 'box';
+        const distType = info.districtType ?? '';
         const details = _buildCostLines(type, info);
 
         let errorMsg = '';
-        if (!powered) errorMsg = ' [ROVER OFFLINE - POWER ON TO BUILD]';
-        else if (!canAfford) errorMsg = ' [INSUFFICIENT RESOURCES]';
+        if (!canAfford) errorMsg = ' [INSUFFICIENT RESOURCES]';
         else if (!canBuild) errorMsg = ' [NO COMPATIBLE TERRAIN]';
 
+        btn.className = 'ctx-btn dist-btn';
         btn.innerHTML = `
-          <div class="ctx-btn-title">${ico(iconName)} ${info.name}</div>
-          <div class="ctx-btn-details">${details}<span style="color:var(--red); font-weight:bold;">${errorMsg}</span></div>
+          <span class="dist-icon-diamond chip type-${distType}">${ico(iconName, 11)}</span>
+          <div class="ctx-btn-text-col">
+            <div class="ctx-btn-title">${info.name}</div>
+            <div class="ctx-btn-details">${details}<span style="color:var(--red); font-weight:bold;">${errorMsg}</span></div>
+          </div>
         `;
         btn.addEventListener('click', () => opts.onStartBuild?.(type));
         btn.addEventListener('mouseenter', (e) => this.showBuildPreview(type, e.target.getBoundingClientRect()));
@@ -289,7 +334,7 @@ export class UIManager {
       }
 
       if (!powered) {
-        warningsEl.innerHTML = `${ico('alert-circle')} ROVER POWERED OFF — POWER ON TO BUILD.`;
+        // avviso già mostrato in cima alla lista di costruzione
       } else if (!canBuildAnything(opts.buildableTypes, regolith, components)) {
         warningsEl.innerHTML = `${ico('alert-circle')} NO CONSTRUCTION AVAILABLE AT CURRENT POSITION.`;
       }
@@ -306,20 +351,45 @@ export class UIManager {
 
       nameEl.innerHTML = `${ico(iconName, 16)} ${info.name ?? building.type}`;
 
+      // Status badge edificio
+      if (opts.buildingState != null) {
+        const stateMap = {
+          active:       { label: 'ACTIVE',       icon: 'check-circle',   cls: 'active' },
+          off:          { label: 'POWERED OFF',   icon: 'power-off',      cls: 'off' },
+          constructing: { label: 'CONSTRUCTING',  icon: 'hammer',         cls: 'constructing' },
+          standby:      { label: 'STANDBY',       icon: 'pause-circle',   cls: 'standby' },
+          disconnected: { label: 'NO CONDUIT',    icon: 'unlink',         cls: 'disconnected' },
+          damaged:      { label: 'DAMAGED',       icon: 'alert-triangle', cls: 'disconnected' },
+        };
+        const sm = stateMap[opts.buildingState] ?? stateMap.active;
+        let extraBadge = '';
+        if (opts.buildingState === 'standby') {
+          if (building._lackingEnergy)
+            extraBadge = `<span class="ctx-status-badge standby">${ico('zap-off', 11)} LACKS ENERGY</span>`;
+          else if (building._lackingCrew)
+            extraBadge = `<span class="ctx-status-badge standby">${ico('user-x', 11)} LACKS CREW</span>`;
+        }
+        statsEl.innerHTML = `<div style="margin-bottom:4px;"><span class="ctx-status-badge ${sm.cls}">${ico(sm.icon, 11)} ${sm.label}</span>${extraBadge}</div>`;
+      }
+
       const previewSrc = BUILDING_PREVIEWS[building.type];
       if (previewSrc) previewEl.src = previewSrc;
 
       // 1. Dati Distretto (Se applicabile)
       if (info.isDistrictCenter && opts.districtInfo) {
         const { district, districtDef, slots } = opts.districtInfo;
-        const typeLabel = districtDef?.label ?? 'CORE DISTRICT';
+        const distType = district.type;
+        const distDefIcon = districtDef?.icon ?? iconName;
         const connIco = district.connected
           ? `<span style="color:var(--green)">${ico('check-circle')} Connected</span>`
           : `<span style="color:var(--red)">${ico('x-circle')} Conduit missing</span>`;
 
-        statsEl.innerHTML = `
-          <div style="color:var(--text-dim)">Type: ${typeLabel}</div>
-          <div style="margin-top:2px;">${connIco}</div>`;
+        if (distIconEl) {
+          distIconEl.innerHTML = `<span class="dist-icon-diamond panel-lg type-${distType}">${ico(distDefIcon, 22)}</span>`;
+        }
+        nameEl.innerHTML = info.name ?? building.type;
+
+        statsEl.innerHTML += `<div style="margin-top:2px;">${connIco}</div>`;
 
         // Moduli Occupati
         const occupiedSlots = slots.filter(s => s.module !== null);
@@ -327,7 +397,11 @@ export class UIManager {
           const modInfo = BUILDINGS_INFO[slot.module.type] ?? {};
           const row = document.createElement('div');
           row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;background:var(--ghost-bg);border:1px solid var(--ghost-border);border-radius:4px;padding:5px 8px;margin-bottom:4px;';
-          row.innerHTML = `<span style="font-size:0.72rem;color:var(--white)">${ico(BUILDING_ICONS[slot.module.type] ?? 'box')} ${modInfo.name ?? slot.module.type}</span>`;
+          const mod = slot.module;
+          const modState = mod.isPowered === false ? 'off'
+            : mod._econActive === false ? 'standby'
+            : 'active';
+          row.innerHTML = `<span style="font-size:0.72rem;color:var(--white);display:flex;align-items:center;gap:4px;"><span class="module-status-dot ${modState}"></span>${ico(BUILDING_ICONS[mod.type] ?? 'box')} ${modInfo.name ?? mod.type}</span>`;
 
           const removeBtn = document.createElement('button');
           removeBtn.style.cssText = 'padding:2px 8px;font-size:0.65rem;font-family:"Space Mono","Courier New",monospace;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.4);color:var(--red);border-radius:32px;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;';
@@ -338,6 +412,37 @@ export class UIManager {
           actionsEl.appendChild(row);
         });
 
+        // Efficiency distretto: moduli attivi / totale
+        if (occupiedSlots.length > 0) {
+          const activeCount = occupiedSlots.filter(s =>
+            s.module.isPowered !== false && s.module._econActive !== false
+          ).length;
+          const effPct = Math.round((activeCount / occupiedSlots.length) * 100);
+          const effColor = effPct === 100 ? 'var(--green)' : effPct > 50 ? 'var(--yellow)' : 'var(--red)';
+          statsEl.innerHTML += `
+            <div class="ctx-district-efficiency">
+              <div class="eff-label">${activeCount}/${occupiedSlots.length} MODULES ACTIVE</div>
+              <div class="eff-bar-row">
+                <div class="eff-bar"><div class="eff-bar-fill" style="width:${effPct}%;background:${effColor}"></div></div>
+                <span class="chip-mini-text">${effPct}%</span>
+              </div>
+            </div>`;
+        }
+
+        // Power toggle distretto (sopra BUILD MODULE)
+        if (building.type !== 'command' && !info.alwaysOn) {
+          const powered = building.isPowered !== false;
+          const distPowerRow = document.createElement('div');
+          distPowerRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;';
+          distPowerRow.innerHTML = `
+            <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
+            <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>`;
+          if (!building.isConstructing) {
+            distPowerRow.addEventListener('click', () => opts.onTogglePower?.(building));
+          }
+          actionsEl.appendChild(distPowerRow);
+        }
+
         // Slot Liberi e Bottoni Costruzione Moduli
         const freeSlots = slots.filter(s => s.module === null);
         if (freeSlots.length > 0 && districtDef.allowedModules.length > 0) {
@@ -346,6 +451,14 @@ export class UIManager {
           buildHeader.style.cssText = 'margin-bottom:4px;margin-top:6px;';
           buildHeader.innerText = 'BUILD MODULE';
           actionsEl.appendChild(buildHeader);
+
+          const isDistrictReady = !district.mainBuilding.isConstructing;
+          if (!isDistrictReady) {
+            const constructWarn = document.createElement('div');
+            constructWarn.style.cssText = 'display:flex;align-items:center;gap:5px;padding:3px 0;font-family:"Space Mono","Courier New",monospace;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);';
+            constructWarn.innerHTML = `${ico('clock', 11)} CENTER UNDER CONSTRUCTION`;
+            actionsEl.appendChild(constructWarn);
+          }
 
           for (const modType of districtDef.allowedModules) {
             const modInfo = BUILDINGS_INFO[modType] ?? {};
@@ -360,18 +473,16 @@ export class UIManager {
               if (modType === 'deep_drill' && s.terrain !== 'regolith') return false;
               return true;
             });
-            const isDistrictReady = !district.mainBuilding.isConstructing;
             const canPlace = regOk && compOk && hasCompatibleSlot && isDistrictReady && !isLimitReached;
 
             const costStr = [
-              (modInfo.cost ?? 0) > 0 ? `${ico('layers', 12)} ${modInfo.cost}` : '',
-              (modInfo.costComponents ?? 0) > 0 ? `${ico('cpu', 12)} ${modInfo.costComponents}` : '',
-            ].filter(Boolean).join(' ') || 'FREE';
+              (modInfo.cost ?? 0) > 0 ? `<span style="color:var(--col-reg);display:inline-flex;align-items:center;gap:2px;">${ico('layers', 12)}${modInfo.cost}</span>` : '',
+              (modInfo.costComponents ?? 0) > 0 ? `<span style="color:var(--col-comp);display:inline-flex;align-items:center;gap:2px;">${ico('cpu', 12)}${modInfo.costComponents}</span>` : '',
+            ].filter(Boolean).join('') || 'FREE';
 
             let details = costStr;
             if (isLimitReached) details += ` <span style="color:var(--red)">${ico('alert-triangle', 11)} MAX ${maxPerDist} PER DISTRICT</span>`;
             else if (!hasCompatibleSlot) details += ` <span style="color:var(--red)">${ico('alert-circle', 11)} NO COMPATIBLE SLOT</span>`;
-            if (!isDistrictReady) details += ` <span style="color:var(--yellow)">${ico('clock', 11)} CENTER UNDER CONSTRUCTION</span>`;
 
             const btn = document.createElement('button');
             btn.className = 'ctx-btn';
@@ -381,7 +492,6 @@ export class UIManager {
             let errorMsg = '';
             if (isLimitReached) errorMsg = ` [MAX CAPACITY REACHED]`;
             else if (!hasCompatibleSlot) errorMsg = ` [NO COMPATIBLE SLOT]`;
-            else if (!isDistrictReady) errorMsg = ` [CENTER UNDER CONSTRUCTION]`;
             else if (!regOk || !compOk) errorMsg = ` [INSUFFICIENT RESOURCES]`;
 
             const isDeficit = (opts.energyProduced ?? 1) < (opts.energyRequired ?? 0);
@@ -399,60 +509,120 @@ export class UIManager {
         }
       }
 
-      // 2. Statistiche Base (Si aggiungono in fondo se era un distretto, o sono l'inizio se è un modulo)
-      const rows = [];
-      if (building.type === 'regolith_extractor' || building.type === 'ice_extractor' || building.type === 'deep_drill') {
+      // ── Helper per header di sezione ────────────────────────────────────────
+      const sH = (label) =>
+        `<div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-top:6px;border-top:1px solid var(--ghost-border);">${label}</div>`;
+      const rI = (iconName, val, color) =>
+        `<span style="color:${color};display:inline-flex;align-items:center;gap:3px;">${ico(iconName, 12)} ${val}</span>`;
+      const ROW = (items) =>
+        `<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">${items.join('')}</div>`;
+
+      // 2a. Deposito rimanente (estrattori)
+      if (['regolith_extractor', 'ice_extractor', 'deep_drill'].includes(building.type)) {
         const cap = opts.capacity ?? 0;
         const capColor = cap > 50 ? 'var(--white)' : 'var(--red)';
-        rows.push(`<div style="color:${capColor}; font-weight:bold;">${ico('database')} Remaining: ${cap} units</div>`);
+        statsEl.innerHTML += sH('DEPOSITO');
+        statsEl.innerHTML += ROW([rI('database', `${cap} unità`, capColor)]);
       }
-      if (info.o2CapBonus > 0) rows.push(`<div style="color:#58a6ff; font-weight:bold;">${ico('chevrons-up')} +${info.o2CapBonus} OXYGEN CAPACITY</div>`);
-      if (info.energyCapBonus > 0) rows.push(`<div style="color:#ffd700; font-weight:bold;">${ico('chevrons-up')} +${info.energyCapBonus} ENERGY STORAGE</div>`);
-      if (info.energyGenDay > 0) rows.push(`<div style="color:var(--green)">${ico('zap')} +${info.energyGenDay} E/TICK (DAY)</div>`);
-      if (info.energyGenNight > 0 && info.energyGenNight !== info.energyGenDay) rows.push(`<div style="color:var(--green)">${ico('zap')} +${info.energyGenNight} E/TICK (NIGHT)</div>`);
+
+      // 2b. Costi di esercizio
+      const costItems = [];
       if (info.energyCons > 0) {
         const commandBonus = building.type === 'hab_module' && opts.clusterBonus?.hasCommandBonus === true;
-        rows.push(commandBonus
-          ? `<div>${ico('zap')} <span style="color:var(--red);text-decoration:line-through">−${info.energyCons} E/TICK</span> <span style="color:var(--green)">0 E</span></div>`
-          : `<div style="color:var(--red)">${ico('zap')} −${info.energyCons} E/TICK</div>`
+        costItems.push(commandBonus
+          ? `<span style="display:inline-flex;align-items:center;gap:3px;">${ico('zap', 12)} <span style="color:var(--red);text-decoration:line-through">−${info.energyCons}</span> <span style="color:var(--green)">0</span></span>`
+          : rI('zap', `−${info.energyCons}`, 'var(--red)')
         );
       }
-      if (info.regolithGen > 0) rows.push(`<div style="color:var(--col-reg)">${ico('layers')} +${info.regolithGen} REG/TICK</div>`);
-      if (info.iceGen > 0) rows.push(`<div style="color:var(--col-ice)">${ico('snowflake')} +${info.iceGen} ICE/TICK</div>`);
+      if (info.crewReq > 0) costItems.push(rI('user', `×${info.crewReq}`, 'var(--col-crew)'));
+      if (info.o2Cons > 0) costItems.push(rI('wind', `−${info.o2Cons}`, 'var(--red)'));
+
+      if (costItems.length > 0) {
+        statsEl.innerHTML += sH('COSTI DI ESERCIZIO');
+        statsEl.innerHTML += ROW(costItems);
+        // Grid status
+        if (info.energyCons > 0) {
+          const ep = opts.energyProduced ?? 0, er = opts.energyRequired ?? 0, es = opts.energyStored ?? 0;
+          const isBlackout = er > ep && es <= 0;
+          const isDeficit  = er > ep && !isBlackout;
+          const gc = isBlackout ? 'blackout' : isDeficit ? 'deficit' : 'ok';
+          const gl = isBlackout ? 'GRID: BLACKOUT' : isDeficit ? 'GRID: DEFICIT' : 'GRID: OK';
+          const gi = isBlackout ? 'zap-off' : isDeficit ? 'alert-triangle' : 'check';
+          statsEl.innerHTML += `<div class="ctx-grid-status ${gc}" style="margin-top:4px;">${ico(gi, 11)} ${gl}</div>`;
+        }
+      }
+
+      // 2c. Produzione / Effetti
+      const effectItems = [];
+      if (info.o2CapBonus > 0) effectItems.push(rI('wind', `+${info.o2CapBonus}`, 'var(--col-o2)'));
+      if (info.energyCapBonus > 0) effectItems.push(rI('battery-full', `+${info.energyCapBonus}`, 'var(--col-nrg)'));
+      if (info.energyGenDay > 0) {
+        const dayOnly = !info.energyGenNight || info.energyGenNight === 0;
+        effectItems.push(`<span style="color:var(--green);display:inline-flex;align-items:center;gap:3px;">${ico('zap', 12)} +${info.energyGenDay}${dayOnly ? ` ${ico('sun', 10)}` : ''}</span>`);
+        if (info.energyGenNight > 0 && info.energyGenNight !== info.energyGenDay)
+          effectItems.push(`<span style="color:var(--col-nrg);display:inline-flex;align-items:center;gap:3px;">${ico('zap', 12)} +${info.energyGenNight} ${ico('moon', 10)}</span>`);
+      }
+      if (info.crewGen > 0) effectItems.push(rI('users', `+${info.crewGen}`, 'var(--col-crew)'));
+      if (info.regolithGen > 0) effectItems.push(rI('layers', `+${info.regolithGen}`, 'var(--col-reg)'));
+      if (info.iceGen > 0) effectItems.push(rI('snowflake', `+${info.iceGen}`, 'var(--col-ice)'));
       if (info.conversion) {
         const { inputRes, inputCost, outputRes, outputAmount } = info.conversion;
-        const inM = RES_META[inputRes] ?? { icon: 'circle', label: inputRes, color: 'inherit' };
-        const outM = RES_META[outputRes] ?? { icon: 'circle', label: outputRes, color: 'inherit' };
-        rows.push(`<div>${ico('refresh-cw')} <span style="color:${inM.color}">${ico(inM.icon)} ${inputCost} ${inM.label}</span> ${ico('arrow-right')} <span style="color:${outM.color}">${ico(outM.icon)} ${outputAmount} ${outM.label}</span> / TICK</div>`);
+        const inM = RES_META[inputRes] ?? { icon: 'circle', color: 'inherit' };
+        const outM = RES_META[outputRes] ?? { icon: 'circle', color: 'inherit' };
+        effectItems.push(
+          `<span style="display:inline-flex;align-items:center;gap:3px;color:var(--text-dim)">` +
+          `<span style="color:${inM.color}">${ico(inM.icon, 12)} ${inputCost}</span>` +
+          ` ${ico('arrow-right', 10)} ` +
+          `<span style="color:${outM.color}">${ico(outM.icon, 12)} ${outputAmount}</span>` +
+          `</span>`
+        );
       }
-      if (info.isPassable) rows.push(`<div style="color:var(--text-dim)">${ico('move-right')} Passabile</div>`);
 
-      if (rows.length > 0) statsEl.innerHTML += `<div style="margin-top:6px;">${rows.join('')}</div>`;
+      if (effectItems.length > 0) {
+        statsEl.innerHTML += sH('PRODUZIONE');
+        statsEl.innerHTML += ROW(effectItems);
+      }
 
-      // 3. Bonus Sinergia
+      // 2d. Sinergie
       if (opts.clusterBonus != null) {
         const { buildingType, count, bonus } = opts.clusterBonus;
-        let synergyHtml = '';
+        const synergyItems = [];
+        const hint = (msg) => `<span style="color:var(--text-dim);font-size:0.6rem;">${ico('lightbulb', 11)} ${msg}</span>`;
+
         if (buildingType === 'hab_module') {
           const { habCount, habBonus, hasCommandBonus } = opts.clusterBonus;
-          synergyHtml += habBonus > 0
-            ? `<div style="color:var(--green);margin-top:6px;">${ico('star')} Bonus: +${habBonus} Crew (${habCount} HAB)</div>`
-            : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Connect more HABs to increase capacity.</div>`;
-          synergyHtml += hasCommandBonus
-            ? `<div style="color:var(--green);margin-top:4px;">${ico('star')} Bonus: Grid Power (0 cost)</div>`
-            : `<div style="color:var(--text-dim);margin-top:4px;">${ico('lightbulb')} Connect Command Module to zero consumption.</div>`;
+          synergyItems.push(habBonus > 0
+            ? rI('users', `+${habBonus}`, 'var(--col-crew)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${habCount} HAB)</span>`
+            : hint('+ HAB → più crew'));
+          synergyItems.push(hasCommandBonus
+            ? rI('zap', '0 E', 'var(--green)')
+            : hint('command → 0 E'));
         } else if (buildingType === 'solar_array') {
-          synergyHtml = bonus > 0 ? `<div style="color:var(--green);margin-top:6px;">${ico('star')} Bonus: +${bonus} Energy (${count + 1} Panels)</div>` : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Connect 2+ panels in same District.</div>`;
+          synergyItems.push(bonus > 0
+            ? rI('zap', `+${bonus}`, 'var(--green)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count + 1} pannelli)</span>`
+            : hint('2+ pannelli → bonus'));
         } else if (buildingType === 'isru_plant') {
-          synergyHtml = bonus > 0 ? `<div style="color:var(--green);margin-top:6px;">${ico('star')} Bonus: +${bonus} O₂ (${count} Ice Extractors)</div>` : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Connect Ice Extractors for more O₂.</div>`;
+          synergyItems.push(bonus > 0
+            ? rI('wind', `+${bonus}`, 'var(--col-o2)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            : hint('+ ice extractors → bonus O₂'));
         } else if (buildingType === 'component_factory') {
-          synergyHtml = bonus > 0 ? `<div style="color:var(--green);margin-top:6px;">${ico('star')} Bonus: +${bonus} Components (${count} Reg Extractors)</div>` : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Group with Regolith Extractors.</div>`;
+          synergyItems.push(bonus > 0
+            ? rI('cpu', `+${bonus}`, 'var(--col-comp)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            : hint('+ reg extractors → bonus'));
         } else if (buildingType === 'regolith_extractor') {
-          synergyHtml = bonus > 0 ? `<div style="color:var(--col-reg);margin-top:6px;">${ico('star')} Bonus: +${bonus} REG/TICK (${count} Extractors)</div>` : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Connect more Regolith Extractors.</div>`;
+          synergyItems.push(bonus > 0
+            ? rI('layers', `+${bonus}`, 'var(--col-reg)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            : hint('+ estrattori → bonus'));
         } else if (buildingType === 'ice_extractor') {
-          synergyHtml = bonus > 0 ? `<div style="color:var(--col-ice);margin-top:6px;">${ico('star')} Bonus: +${bonus} ICE/TICK (${count} Extractors)</div>` : `<div style="color:var(--text-dim);margin-top:6px;">${ico('lightbulb')} Connect more Ice Extractors.</div>`;
+          synergyItems.push(bonus > 0
+            ? rI('snowflake', `+${bonus}`, 'var(--col-ice)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            : hint('+ estrattori → bonus'));
         }
-        if (synergyHtml) statsEl.innerHTML += synergyHtml;
+
+        if (synergyItems.length > 0) {
+          statsEl.innerHTML += sH('SINERGIE');
+          statsEl.innerHTML += `<div style="display:flex;flex-direction:column;gap:4px;">${synergyItems.join('')}</div>`;
+        }
       }
 
       // 4. Azioni (Bottoni Base)
@@ -460,14 +630,17 @@ export class UIManager {
         this._addBuildRoverButton(actionsEl, warningsEl, opts);
       }
 
-      if (building.type !== 'conduit' && building.type !== 'command' && !info.alwaysOn) {
+      if (building.type !== 'conduit' && building.type !== 'command' && !info.alwaysOn && !info.isDistrictCenter) {
         const powered = building.isPowered !== false;
-        const btnPower = document.createElement('button');
-        btnPower.className = 'ctx-btn';
-        btnPower.disabled = building.isConstructing === true;
-        btnPower.innerHTML = powered ? `${ico('power-off')} POWER OFF` : `${ico('power')} POWER ON`;
-        btnPower.addEventListener('click', () => opts.onTogglePower?.(building));
-        actionsEl.appendChild(btnPower);
+        const toggleRow = document.createElement('div');
+        toggleRow.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;${building.isConstructing ? 'opacity:0.35;pointer-events:none;' : ''}`;
+        toggleRow.innerHTML = `
+          <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
+          <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>`;
+        if (!building.isConstructing) {
+          toggleRow.addEventListener('click', () => opts.onTogglePower?.(building));
+        }
+        actionsEl.appendChild(toggleRow);
       }
 
       if (info.crewReq > 0) {
@@ -526,50 +699,58 @@ export class UIManager {
       energyStored, maxEnergy,
       crewTotal, crewEmployed,
       deltaReg, deltaIce, deltaO2, deltaComp, deltaEnergy,
-      // --- SPRINT 2: Nuovi Dati con Fallback di Sicurezza ---
       maxOxygen = 200,
+      maxRegolith = 300,
+      maxIce = 100,
+      maxComponents = 100,
       deadlockActive = false,
       deadlockTime = 0
     } = data;
 
-    // Regolith: NET (grande) & TOTAL (piccolo)
+    // Regolith: NET (grande) & STORAGE BAR (piccolo)
     const regValEl = document.getElementById('res-reg-val');
-    const regDeltaEl = document.getElementById('res-reg-delta');
     if (regValEl) {
       const sign = deltaReg >= 0 ? '+' : '';
       regValEl.innerText = `${sign}${Math.round(deltaReg)}`;
       regValEl.style.color = deltaReg < 0 ? 'var(--red)' : 'var(--white)';
     }
-    if (regDeltaEl) {
-      regDeltaEl.innerText = `${Math.round(regolith)}`;
-      regDeltaEl.className = 'res-delta zero';
+    const regStorageEl = document.getElementById('res-reg-storage');
+    const regBarEl = document.getElementById('res-reg-bar');
+    if (regStorageEl && regBarEl) {
+      regStorageEl.innerText = `${Math.round(regolith)} / ${maxRegolith}`;
+      const pct = maxRegolith > 0 ? Math.min(100, Math.max(0, (regolith / maxRegolith) * 100)) : 0;
+      regBarEl.style.width = `${pct}%`;
     }
 
-    // Components: NET (grande) & TOTAL (piccolo)
+    // Components: NET (grande) & STORAGE BAR (piccolo)
     const compValEl = document.getElementById('res-comp-val');
-    const compDeltaEl = document.getElementById('res-comp-delta');
     const deltaCompVal = deltaComp ?? 0;
     if (compValEl) {
       const sign = deltaCompVal >= 0 ? '+' : '';
       compValEl.innerText = `${sign}${Math.round(deltaCompVal)}`;
       compValEl.style.color = deltaCompVal < 0 ? 'var(--red)' : 'var(--white)';
     }
-    if (compDeltaEl) {
-      compDeltaEl.innerText = `${Math.round(components)}`;
-      compDeltaEl.className = 'res-delta zero';
+    const compStorageEl = document.getElementById('res-comp-storage');
+    const compBarEl = document.getElementById('res-comp-bar');
+    if (compStorageEl && compBarEl) {
+      compStorageEl.innerText = `${Math.round(components)} / ${maxComponents}`;
+      const pct = maxComponents > 0 ? Math.min(100, Math.max(0, (components / maxComponents) * 100)) : 0;
+      compBarEl.style.width = `${pct}%`;
     }
 
-    // Ice: NET (grande) & TOTAL (piccolo)
+    // Ice: NET (grande) & STORAGE BAR (piccolo)
     const iceValEl = document.getElementById('res-ice-val');
-    const iceDeltaEl = document.getElementById('res-ice-delta');
     if (iceValEl) {
       const sign = deltaIce >= 0 ? '+' : '';
       iceValEl.innerText = `${sign}${Math.round(deltaIce)}`;
       iceValEl.style.color = deltaIce < 0 ? 'var(--red)' : 'var(--white)';
     }
-    if (iceDeltaEl) {
-      iceDeltaEl.innerText = `${Math.round(ice)}`;
-      iceDeltaEl.className = 'res-delta zero';
+    const iceStorageEl = document.getElementById('res-ice-storage');
+    const iceBarEl = document.getElementById('res-ice-bar');
+    if (iceStorageEl && iceBarEl) {
+      iceStorageEl.innerText = `${Math.round(ice)} / ${maxIce}`;
+      const pct = maxIce > 0 ? Math.min(100, Math.max(0, (ice / maxIce) * 100)) : 0;
+      iceBarEl.style.width = `${pct}%`;
     }
 
     // --- LOGICA OXYGEN: NET (grande) & STORAGE BAR ---
@@ -845,17 +1026,35 @@ export class UIManager {
     const canAffordRover = isCompCost ? opts.components >= ROVER_COST : opts.regolith >= ROVER_COST;
     const isLimitReached = (opts.activeRoversCount ?? 0) >= (opts.maxRovers ?? 0);
     const costLabel = isCompCost ? `${ROVER_COST} Comp` : `${ROVER_COST} Reg`;
+    const costIcon = isCompCost ? 'cpu' : 'layers';
+    const costColor = isCompCost ? 'var(--col-comp)' : 'var(--col-reg)';
+
+    const unitHeader = document.createElement('div');
+    unitHeader.className = 'section-header';
+    unitHeader.style.cssText = 'margin-bottom:4px;margin-top:6px;';
+    unitHeader.innerText = 'BUILD UNIT';
+    actionsEl.appendChild(unitHeader);
+
+    if (isLimitReached) {
+      const limitWarn = document.createElement('div');
+      limitWarn.style.cssText = 'display:flex;align-items:center;gap:5px;padding:3px 0;font-family:"Space Mono","Courier New",monospace;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--yellow);';
+      limitWarn.innerHTML = `${ico('alert-circle', 11)} ROVER LIMIT REACHED (${opts.maxRovers}) — BUILD WORKSHOPS.`;
+      actionsEl.appendChild(limitWarn);
+    }
 
     const btnRover = document.createElement('button');
-    btnRover.className = 'ctx-btn primary';
+    btnRover.className = `ctx-btn dist-btn${canAffordRover && !isLimitReached ? ' primary' : ''}`;
     btnRover.disabled = !canAffordRover || isLimitReached;
-    btnRover.innerHTML = `${ico('truck')} BUILD ROVER <span class="ctx-cost">${ico(isCompCost ? 'cpu' : 'layers')} ${costLabel}</span>`;
+    btnRover.innerHTML = `
+      <span class="dist-icon-diamond chip">${ico('truck', 11)}</span>
+      <div class="ctx-btn-text-col">
+        <div class="ctx-btn-title">BUILD ROVER</div>
+        <div class="ctx-btn-details"><span style="color:${costColor};display:inline-flex;align-items:center;gap:2px;">${ico(costIcon, 12)}${costLabel}</span></div>
+      </div>`;
     btnRover.addEventListener('click', () => opts.onBuildRover?.());
     actionsEl.appendChild(btnRover);
 
-    if (isLimitReached) {
-      warningsEl.innerHTML = `${ico('alert-circle')} ROVER LIMIT REACHED (${opts.maxRovers}) - BUILD WORKSHOPS.`;
-    } else if (!canAffordRover) {
+    if (!isLimitReached && !canAffordRover) {
       warningsEl.innerHTML = `${ico('alert-circle')} Need ${ROVER_COST} ${isCompCost ? 'Components' : 'Regolith'}.`;
     }
   }

@@ -75,19 +75,6 @@
   overflow: hidden;
 }
 
-/* Righette di separazione: solo logo e pulsanti */
-.top-bar-brand::after,
-.top-bar-controls::before {
-  content: '';
-  position: absolute;
-  width: 1px;
-  background: var(--ghost-border);
-  top: 50%;
-  transform: translateY(-50%);
-  height: calc(var(--top-bar-h) - 20px);
-}
-.top-bar-brand::after    { right: 0; }
-.top-bar-controls::before { left: 0; }
 
 .top-bar-resources .res-stack {
   display: flex;
@@ -162,6 +149,9 @@
 #chip-nrg  .res-icon { color: var(--col-nrg); }
 #chip-crew .res-icon { color: var(--col-crew); }
 
+#chip-reg  .res-mini-bar-fill { background: var(--col-reg); }
+#chip-comp .res-mini-bar-fill { background: var(--col-comp); }
+#chip-ice  .res-mini-bar-fill { background: var(--col-ice); }
 #chip-o2   .res-mini-bar-fill { background: var(--col-o2); }
 #chip-nrg  .res-mini-bar-fill { background: var(--col-nrg); }
 #chip-crew .res-mini-bar-fill { background: var(--col-crew); }
@@ -204,6 +194,14 @@
   --col-nrg: rgba(255, 215, 0, 0.85);
   --col-crew: rgba(255, 100, 80, 0.85);
   --col-comp: rgba(160, 100, 240, 0.85);
+
+  /* District palette — collegati alle risorse predominanti */
+  --col-district-command:   #8899cc;
+  --col-district-habitat:   #3fc864;
+  --col-district-logistics: #a87eea;
+  --col-district-mining:    #c8885c;
+  --col-district-cryo:      #00e5ff;
+  --col-district-energy:    #ffeb3b;
 }
 
 body {
@@ -251,7 +249,7 @@ body {
 .top-bar-resources {
   display: flex;
   align-items: stretch;
-  gap: 3px;
+  gap: 8px;
   flex: 1;
   overflow: hidden;
 }
@@ -666,10 +664,10 @@ body {
 #ctx-name {
   font-family: 'Space Mono', 'Courier New', monospace;
   font-weight: 700;
-  font-size: 0.81rem;
+  font-size: 1rem;
   color: var(--white);
   text-transform: uppercase;
-  letter-spacing: 1.17px;
+  letter-spacing: 1.5px;
   line-height: 1.2;
 }
 
@@ -701,18 +699,128 @@ body {
   min-height: 14px;
 }
 
+/* =========================================================
+   SIDEBAR — POWER TOGGLE
+========================================================= */
+.ctx-power-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--ghost-bg);
+  border: 1px solid var(--ghost-border); border-radius: 4px;
+  cursor: pointer; margin-bottom: 4px;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--white);
+  transition: background 0.2s, border-color 0.2s;
+}
+.ctx-power-toggle:hover:not(.disabled) { background: var(--ghost-bg-hover); border-color: var(--ghost-border-str); }
+.ctx-power-toggle.disabled { opacity: 0.35; cursor: not-allowed; }
+.ctx-power-toggle-label { display: flex; align-items: center; gap: 6px; }
+.ctx-power-switch {
+  width: 32px; height: 16px; border-radius: 8px;
+  background: rgba(255,255,255,0.12); border: 1px solid var(--ghost-border);
+  position: relative; transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.ctx-power-switch.on {
+  background: rgba(63,200,100,0.25); border-color: rgba(63,200,100,0.6);
+}
+.ctx-power-switch::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--text-dim); transition: left 0.2s, background 0.2s;
+}
+.ctx-power-switch.on::after { left: 18px; background: var(--green); }
+
+/* =========================================================
+   SIDEBAR — STATUS BADGE
+========================================================= */
+.ctx-status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 4px;
+  font-family: 'Space Mono', 'Courier New', monospace; font-size: 0.63rem;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  border: 1px solid; margin-bottom: 6px;
+}
+.ctx-status-badge.active      { color: var(--green);    background: rgba(63,200,100,0.08);  border-color: rgba(63,200,100,0.35); }
+.ctx-status-badge.off         { color: var(--text-dim); background: var(--ghost-bg);        border-color: var(--ghost-border); }
+.ctx-status-badge.constructing,
+.ctx-status-badge.standby     { color: var(--yellow);   background: rgba(210,165,50,0.08);  border-color: rgba(210,165,50,0.35); }
+.ctx-status-badge.disconnected,
+.ctx-status-badge.wreck       { color: var(--red);      background: rgba(248,81,73,0.08);   border-color: rgba(248,81,73,0.35); }
+
+/* =========================================================
+   SIDEBAR — STAT CHIP (allineato al top-bar chip)
+========================================================= */
+.ctx-stat-chip {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 6px 10px; background: var(--ghost-bg);
+  border: 1px solid var(--ghost-border); border-radius: 4px; margin-bottom: 4px;
+}
+.ctx-stat-chip .chip-top {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; color: var(--white);
+}
+.ctx-stat-chip .chip-bar-row { display: flex; align-items: center; gap: 6px; }
+.ctx-stat-chip .chip-mini-bar {
+  flex: 1; height: 2px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden;
+}
+.ctx-stat-chip .chip-mini-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+.ctx-stat-chip .chip-mini-text {
+  font-family: 'Space Mono', 'Courier New', monospace; font-size: 0.63rem;
+  color: var(--text-dim); white-space: nowrap;
+}
+
+/* =========================================================
+   SIDEBAR — MODULE STATUS DOT
+========================================================= */
+.module-status-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-right: 4px;
+}
+.module-status-dot.active  { background: var(--green); }
+.module-status-dot.standby { background: var(--yellow); }
+.module-status-dot.off     { background: var(--text-dim); }
+
+/* =========================================================
+   SIDEBAR — DISTRICT EFFICIENCY ROW
+========================================================= */
+.ctx-district-efficiency {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 5px 0; border-top: 1px solid var(--ghost-border); margin-top: 4px;
+}
+.ctx-district-efficiency .eff-label {
+  font-family: 'Space Mono', 'Courier New', monospace; font-size: 0.63rem;
+  color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ctx-district-efficiency .eff-bar-row { display: flex; align-items: center; gap: 6px; }
+.ctx-district-efficiency .eff-bar {
+  flex: 1; height: 2px; background: rgba(255,255,255,0.12); border-radius: 2px; overflow: hidden;
+}
+.ctx-district-efficiency .eff-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+
+/* =========================================================
+   SIDEBAR — GRID STATUS ROW
+========================================================= */
+.ctx-grid-status {
+  display: flex; align-items: center; gap: 5px; padding: 3px 0;
+  font-family: 'Space Mono', 'Courier New', monospace; font-size: 0.63rem;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ctx-grid-status.ok      { color: var(--green); }
+.ctx-grid-status.deficit { color: var(--yellow); }
+.ctx-grid-status.blackout { color: var(--red); }
+
 /* Context action buttons — ghost style */
 .ctx-btn {
   width: 100%;
-  padding: 8px 16px;
+  padding: 8px 12px;
   font-family: 'Space Mono', 'Courier New', monospace;
   font-weight: 700;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 1px;
   text-align: left;
-  border-radius: 32px;
-  border: 1px solid var(--ghost-border-str);
+  border-radius: 4px;
+  border: 1px solid var(--ghost-border);
   background: var(--ghost-bg);
   color: var(--white);
   cursor: pointer;
@@ -776,7 +884,7 @@ body {
   color: var(--text-dim);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 14px;
   line-height: 1.4;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1284,54 +1392,171 @@ i[data-lucide] {
 
 /* Colori e bagliori dinamici in base al tipo di distretto */
 
-/* Habitat District (VERDE) */
+/* Command District */
+.district-badge.type-command {
+  border-color: rgba(136, 153, 204, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(136, 153, 204, 0.2);
+}
+
+.district-badge.type-command svg {
+  color: var(--col-district-command);
+}
+
+/* Habitat District */
 .district-badge.type-habitat {
   border-color: rgba(63, 200, 100, 0.6);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(63, 200, 100, 0.2);
 }
 
 .district-badge.type-habitat svg {
-  color: #3fc864;
+  color: var(--col-district-habitat);
 }
 
-/* Logistics (VIOLA/PACCHETTO) */
+/* Logistics District */
 .district-badge.type-logistics {
   border-color: rgba(168, 126, 234, 0.6);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(168, 126, 234, 0.2);
 }
 
 .district-badge.type-logistics svg {
-  color: #a87eea;
+  color: var(--col-district-logistics);
 }
 
-/* Minerario (ARANCIONE REGOLITE) */
+/* Mining District */
 .district-badge.type-mining {
-  border-color: rgba(249, 168, 37, 0.6);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(249, 168, 37, 0.2);
+  border-color: rgba(200, 136, 92, 0.6);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(200, 136, 92, 0.2);
 }
 
 .district-badge.type-mining svg {
-  color: #f9a825;
+  color: var(--col-district-mining);
 }
 
-/* Criogenico / Cryo (CIANO) */
+/* Cryo District */
 .district-badge.type-cryo {
   border-color: rgba(0, 229, 255, 0.6);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 229, 255, 0.2);
 }
 
 .district-badge.type-cryo svg {
-  color: #00e5ff;
+  color: var(--col-district-cryo);
 }
 
-/* Energia (GIALLO LUCIDO) */
+/* Energy District */
 .district-badge.type-energy {
   border-color: rgba(255, 235, 59, 0.6);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 235, 59, 0.2);
 }
 
 .district-badge.type-energy svg {
-  color: #ffeb3b;
+  color: var(--col-district-energy);
+}
+
+/* =========================================================
+   DISTRICT ICON DIAMOND — base + varianti
+   ========================================================= */
+.dist-icon-diamond {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 24, 32, 0.9);
+  border-radius: 4px;
+  transform: rotate(45deg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.dist-icon-diamond svg {
+  transform: rotate(-45deg);
+  transform-origin: center center;
+  display: block;
+}
+
+/* Chip nei bottoni di costruzione rover */
+.dist-icon-diamond.chip {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+}
+
+/* Icona grande sopra il titolo del pannello distretto */
+.dist-icon-diamond.panel-lg {
+  width: 48px;
+  height: 48px;
+  border-radius: 7px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.7), 0 0 10px rgba(255, 255, 255, 0.06);
+}
+
+/* Colori per tipo */
+.dist-icon-diamond.type-command  { border-color: rgba(136, 153, 204, 0.5); }
+.dist-icon-diamond.type-command svg  { color: var(--col-district-command); }
+
+.dist-icon-diamond.type-habitat  { border-color: rgba(63, 200, 100, 0.5); }
+.dist-icon-diamond.type-habitat svg  { color: var(--col-district-habitat); }
+
+.dist-icon-diamond.type-logistics { border-color: rgba(168, 126, 234, 0.5); }
+.dist-icon-diamond.type-logistics svg { color: var(--col-district-logistics); }
+
+.dist-icon-diamond.type-mining   { border-color: rgba(200, 136, 92, 0.5); }
+.dist-icon-diamond.type-mining svg   { color: var(--col-district-mining); }
+
+.dist-icon-diamond.type-cryo     { border-color: rgba(0, 229, 255, 0.5); }
+.dist-icon-diamond.type-cryo svg     { color: var(--col-district-cryo); }
+
+.dist-icon-diamond.type-energy   { border-color: rgba(255, 235, 59, 0.5); }
+.dist-icon-diamond.type-energy svg   { color: var(--col-district-energy); }
+
+/* Glow specifico panel-lg per tipo */
+.dist-icon-diamond.panel-lg.type-command  { box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(136,153,204,0.25); }
+.dist-icon-diamond.panel-lg.type-habitat  { box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(63,200,100,0.25); }
+.dist-icon-diamond.panel-lg.type-logistics{ box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(168,126,234,0.25); }
+.dist-icon-diamond.panel-lg.type-mining   { box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(200,136,92,0.25); }
+.dist-icon-diamond.panel-lg.type-cryo     { box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(0,229,255,0.25); }
+.dist-icon-diamond.panel-lg.type-energy   { box-shadow: 0 4px 16px rgba(0,0,0,0.7), 0 0 20px rgba(255,235,59,0.25); }
+
+/* =========================================================
+   DISTRICT ICON — wrapper panel sopra il titolo
+   ========================================================= */
+#ctx-district-icon {
+  display: flex;
+  align-items: center;
+  padding-left: 2px;
+  margin-top: -42px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 2;
+}
+
+#ctx-district-icon:empty {
+  display: none;
+}
+
+/* =========================================================
+   CHIP DISTRETTO nei bottoni costruzione rover
+   ========================================================= */
+.ctx-btn.dist-btn {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 12px 6px 8px;
+}
+
+.ctx-btn.dist-btn .dist-icon-diamond.chip {
+  margin-top: 3px;
+}
+
+.ctx-btn-text-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ctx-btn.dist-btn .ctx-btn-title {
+  margin-bottom: 0;
 }
 
 * {

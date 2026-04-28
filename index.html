@@ -28,11 +28,14 @@
       <div class="res-chip" id="chip-reg">
         <div class="res-row-top">
           <span class="res-icon"><i data-lucide="layers"></i></span>
-          <span class="res-value" id="res-reg-val">600</span>
+          <span class="res-value" id="res-reg-val">+0</span>
           <span class="res-label">REGOLITH (NET)</span>
         </div>
         <div class="res-row-bottom">
-          <span class="res-delta zero" id="res-reg-delta">+0</span>
+          <span class="res-mini-text" id="res-reg-storage">0 / 0</span>
+          <div class="res-mini-bar">
+            <div class="res-mini-bar-fill" id="res-reg-bar"></div>
+          </div>
         </div>
       </div>
 
@@ -40,11 +43,14 @@
       <div class="res-chip" id="chip-comp">
         <div class="res-row-top">
           <span class="res-icon"><i data-lucide="cpu"></i></span>
-          <span class="res-value" id="res-comp-val">150</span>
+          <span class="res-value" id="res-comp-val">+0</span>
           <span class="res-label">COMPONENTS (NET)</span>
         </div>
         <div class="res-row-bottom">
-          <span class="res-delta zero" id="res-comp-delta">(+0)</span>
+          <span class="res-mini-text" id="res-comp-storage">0 / 0</span>
+          <div class="res-mini-bar">
+            <div class="res-mini-bar-fill" id="res-comp-bar"></div>
+          </div>
         </div>
       </div>
 
@@ -52,11 +58,14 @@
       <div class="res-chip" id="chip-ice">
         <div class="res-row-top">
           <span class="res-icon"><i data-lucide="snowflake"></i></span>
-          <span class="res-value" id="res-ice-val">100</span>
+          <span class="res-value" id="res-ice-val">+0</span>
           <span class="res-label">ICE (NET)</span>
         </div>
         <div class="res-row-bottom">
-          <span class="res-delta zero" id="res-ice-delta">+0</span>
+          <span class="res-mini-text" id="res-ice-storage">0 / 0</span>
+          <div class="res-mini-bar">
+            <div class="res-mini-bar-fill" id="res-ice-bar"></div>
+          </div>
         </div>
       </div>
 
@@ -187,6 +196,8 @@
           <img id="ctx-preview" src="" alt="" />
         </div>
 
+        <div id="ctx-district-icon"></div>
+
         <div class="panel-header" style="margin-top: 8px;">
           <h2 id="ctx-name">— NO SELECTION —</h2>
         </div>
@@ -196,10 +207,6 @@
         <div class="panel-warnings" id="ctx-warnings"></div>
       </div>
 
-      <div class="sidebar-footer">
-        WASD / ARROWS: Camera &nbsp;·&nbsp; LMB: Select Entity<br>
-        RMB / ESC: Cancel Construction &nbsp;·&nbsp; RMB Map: Move Rover
-      </div>
     </aside>
 
     <div id="build-preview-tooltip"></div>

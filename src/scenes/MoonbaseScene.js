@@ -1692,6 +1692,9 @@ export class MoonbaseScene extends Phaser.Scene {
       energyStored: this.economy.energyStored,
       maxEnergy: this.economy.maxEnergy,
       maxOxygen: this.economy.maxOxygen,
+      maxRegolith: this.economy.maxRegolith,
+      maxIce: this.economy.maxIce,
+      maxComponents: this.economy.maxComponents,
       crewTotal: this.economy.crewTotal,
       crewEmployed: this.economy.crewEmployed,
       deltaReg: this.economy.deltaReg,
@@ -2497,8 +2500,9 @@ export class MoonbaseScene extends Phaser.Scene {
   /**
    * BFS dal Comando: marca b.connected = true/false su ogni edificio.
    * Edifici disconnessi → alpha 0.3 e saltati da EconomyManager.
+   * @param {boolean} simulate  Se true, non esegue lock/unlock risorse (usato per test temporanei).
    */
-  _updateNetworkConnectivity() {
+  _updateNetworkConnectivity(simulate = false) {
     const centerCol = Math.floor(GRID_SIZE / 2);
     const centerRow = Math.floor(GRID_SIZE / 2);
 
@@ -2529,9 +2533,16 @@ export class MoonbaseScene extends Phaser.Scene {
     for (const b of this.buildings) {
       const wasConn = b.connected;
       b.connected = connected.has(b);
-      // Se il flag connettività è cambiato, invalida la cache visiva
-      // così _applyBuildingVisuals() forzerà il re-render al prossimo frame
-      if (wasConn !== b.connected) b._lastVisualState = null;
+      if (wasConn !== b.connected) {
+        b._lastVisualState = null;
+        if (!simulate && !b.isConstructing) {
+          if (wasConn === true && b.connected === false) {
+            this.economy.lockStorageResources(b);
+          } else if (wasConn === false && b.connected === true) {
+            this.economy.unlockStorageResources(b);
+          }
+        }
+      }
     }
 
     // Propaga connected al distretto: il distretto è connesso se il suo mainBuilding lo è
@@ -2732,13 +2743,13 @@ export class MoonbaseScene extends Phaser.Scene {
           const prevConnected = new Set(this.buildings.filter(b => b.connected));
           const ucIdx = this.buildings.indexOf(underConduit);
           this.buildings.splice(ucIdx, 1);
-          this._updateNetworkConnectivity();
+          this._updateNetworkConnectivity(true);
           const isNeeded = [...prevConnected].some(
             b => this.buildings.includes(b) && !b.connected
           );
           // Ripristina sempre il condotto nell'array prima di decidere cosa fare
           this.buildings.splice(ucIdx, 0, underConduit);
-          this._updateNetworkConnectivity();
+          this._updateNetworkConnectivity(true);
           if (!isNeeded) {
             this._demolishBuilding(underConduit, true);
             this._pruneDeadEndConduits();
@@ -3763,6 +3774,8 @@ export class MoonbaseScene extends Phaser.Scene {
       components: this.economy.components,
       energyProduced: this.economy.energyProduced,
       energyRequired: this.economy.energyRequired,
+      energyStored: this.economy.energyStored,
+      buildingState: (entity?.type === 'building') ? this._getBuildingState(entity.ref) : null,
       maxRovers: this.economy.maxRovers,
       activeRoversCount: this.rovers.filter(r => !r.isWreck).length,
       capacity: (entity?.type === 'building') ? (this.capacityGrid[entity.ref.row]?.[entity.ref.col] ?? 0) : 0,
@@ -3991,6 +4004,7 @@ export class MoonbaseScene extends Phaser.Scene {
    *   'active'  — funzionante
    */
   _getBuildingState(b) {
+    if (b.isConstructing) return 'constructing';
     if (b.isDamaged) return 'damaged';
     if (b.isPowered === false) return 'off';
     // Condotti non hanno stato produttivo: sono attivi se connessi, altrimenti standby
@@ -4583,14 +4597,9 @@ export class MoonbaseScene extends Phaser.Scene {
     const cy = cam.height / 2;
     const currentIds = new Set();
 
-    const iconMap = {
-      habitat: 'home',
-      logistics: 'truck',
-      mining: 'pickaxe',
-      cryo: 'droplets',
-      energy: 'zap',
-      command: 'landmark'
-    };
+    const iconMap = Object.fromEntries(
+      Object.entries(DISTRICT_TYPES).map(([k, v]) => [k, v.icon])
+    );
 
     for (const district of this.districts) {
       if (!district.mainBuilding) continue;

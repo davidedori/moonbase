@@ -17,6 +17,7 @@ import { BUILDINGS_INFO, DAY_DURATION_MS, NIGHT_DURATION_MS, GRACE_PERIOD_DAYS, 
 import {
   INITIAL_REGOLITH, INITIAL_ICE, INITIAL_OXYGEN, INITIAL_COMPONENTS,
   INITIAL_MAX_OXYGEN, INITIAL_MAX_ROVERS,
+  INITIAL_MAX_REGOLITH, INITIAL_MAX_ICE, INITIAL_MAX_COMPONENTS,
   ECONOMY_TICK_MS,
   EMERGENCY_TIMER_INCREMENT, EMERGENCY_MAX_TIME,
   DEADLOCK_TIMER_INCREMENT, DEADLOCK_MAX_TIME, CREW_PENALTY_INTERVAL,
@@ -53,6 +54,11 @@ export class EconomyManager {
     this.crewEmployed = 0;
     this.maxOxygen = INITIAL_MAX_OXYGEN;
     this.maxRovers = INITIAL_MAX_ROVERS;
+
+    // --- Cap risorse primarie ---
+    this.maxRegolith   = INITIAL_MAX_REGOLITH;
+    this.maxIce        = INITIAL_MAX_ICE;
+    this.maxComponents = INITIAL_MAX_COMPONENTS;
 
 
     // --- Stato di gioco ---
@@ -196,18 +202,24 @@ export class EconomyManager {
   }
 
   processEconomyTick() {
-    // Start-of-tick hard caps recalculation to reflect newly constructed batteries immediately
-    this.maxOxygen = INITIAL_MAX_OXYGEN;
-    this.maxEnergy = 0; // FIX: Base capacity a 0 (prima era 100)
-    this.maxRovers = INITIAL_MAX_ROVERS;
+    // Start-of-tick hard caps recalculation to reflect newly constructed buildings immediately
+    this.maxOxygen     = INITIAL_MAX_OXYGEN;
+    this.maxEnergy     = 0;
+    this.maxRovers     = INITIAL_MAX_ROVERS;
+    this.maxRegolith   = INITIAL_MAX_REGOLITH;
+    this.maxIce        = INITIAL_MAX_ICE;
+    this.maxComponents = INITIAL_MAX_COMPONENTS;
     for (const b of this.buildings) {
       if (b.connected === false || b.isConstructing) continue;
       if (BUILDINGS_INFO[b.type]?.isDistrictCenter) b._econActive = true;
-      if (b.type === 'h2o_tank') this.maxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
-      if (b.type === 'battery_bank') this.maxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
+      if (b.type === 'h2o_tank')        this.maxOxygen     += BUILDINGS_INFO.h2o_tank.o2CapBonus;
+      if (b.type === 'battery_bank')    this.maxEnergy     += BUILDINGS_INFO.battery_bank.energyCapBonus;
+      if (b.type === 'regolith_depot')  this.maxRegolith   += BUILDINGS_INFO.regolith_depot.regolithCapBonus;
+      if (b.type === 'ice_silo')        this.maxIce        += BUILDINGS_INFO.ice_silo.iceCapBonus;
+      if (b.type === 'component_depot') this.maxComponents += BUILDINGS_INFO.component_depot.componentCapBonus;
       if (b.type === 'rover_workshop' && b._econActive) this.maxRovers += ROVER_WORKSHOP_BONUS_ROVERS;
     }
-    // Ensure energyStored respects the new max energy immediately
+    // Ensure stored values respect new maxima immediately
     this.energyStored = Math.max(0, Math.min(this.maxEnergy, this.energyStored));
 
 
@@ -447,18 +459,26 @@ export class EconomyManager {
     // --- Finalize Tick ---
     // Il delta ora mostra il flusso netto, indipendentemente dal limite del serbatoio
     this.deltaO2 = totalO2Produced - totalO2Consumed;
+    // Fix: clamp O2 al cap (senza clamp poteva superare maxOxygen)
+    this.oxygen = Math.max(0, Math.min(this.maxOxygen, this.oxygen));
 
     // --- FIX: RICARICA / SCARICA STORAGE ENERGETICO ---
-    // Alla fine del consumo, "energyPool" contiene esattamente l'energia avanzata 
-    // (Produzione + Storage Precedente - Consumo Attuale). 
+    // Alla fine del consumo, "energyPool" contiene esattamente l'energia avanzata
+    // (Produzione + Storage Precedente - Consumo Attuale).
     // La blocchiamo entro il limite massimo delle batterie (maxEnergy).
     // Rete: deltaEnergy è bilancio netto tra produzione e energia POTENZIALE (energyRequired)
     this.deltaEnergy = this.energyProduced - this.energyRequired;
     this.energyStored = Math.max(0, Math.min(this.maxEnergy, energyPool));
 
-    this.deltaReg = this.regolith - this._prevRegolith;
-    this.deltaIce = this.ice - this._prevIce;
+    // Delta calcolato PRIMA del clamp per mostrare il flusso reale (come energia/O2)
+    this.deltaReg  = this.regolith   - this._prevRegolith;
+    this.deltaIce  = this.ice        - this._prevIce;
     this.deltaComp = this.components - this._prevComponents;
+
+    // Clamp risorse primarie ai cap (eccesso scartato)
+    this.regolith   = Math.max(0, Math.min(this.maxRegolith,   this.regolith));
+    this.ice        = Math.max(0, Math.min(this.maxIce,        this.ice));
+    this.components = Math.max(0, Math.min(this.maxComponents, this.components));
 
     // Emergenze
     if (this.oxygen <= 0) {
@@ -502,6 +522,9 @@ export class EconomyManager {
       energyStored: this.energyStored,
       maxEnergy: this.maxEnergy,
       maxOxygen: this.maxOxygen,
+      maxRegolith: this.maxRegolith,
+      maxIce: this.maxIce,
+      maxComponents: this.maxComponents,
       crewTotal: this.crewTotal,
       crewEmployed: this.crewEmployed,
       deltaReg: this.deltaReg,
@@ -617,17 +640,23 @@ export class EconomyManager {
     // Rimosso _prevEnergyStored: deltaEnergy calcolato dinamicamente in rete
     let simIce = this.ice;
 
-    let simMaxOxygen = INITIAL_MAX_OXYGEN;
-    let simMaxEnergy = 0;
-    let simMaxRovers = INITIAL_MAX_ROVERS;
+    let simMaxOxygen     = INITIAL_MAX_OXYGEN;
+    let simMaxEnergy     = 0;
+    let simMaxRovers     = INITIAL_MAX_ROVERS;
+    let simMaxRegolith   = INITIAL_MAX_REGOLITH;
+    let simMaxIce        = INITIAL_MAX_ICE;
+    let simMaxComponents = INITIAL_MAX_COMPONENTS;
 
     // 1. Hard Caps Statici
     for (const b of this.buildings) {
       if (b.connected === false || b.isConstructing) continue;
       if (BUILDINGS_INFO[b.type]?.isDistrictCenter) b._econActive = true;
 
-      if (b.type === 'h2o_tank') simMaxOxygen += BUILDINGS_INFO.h2o_tank.o2CapBonus;
-      if (b.type === 'battery_bank') simMaxEnergy += BUILDINGS_INFO.battery_bank.energyCapBonus;
+      if (b.type === 'h2o_tank')        simMaxOxygen     += BUILDINGS_INFO.h2o_tank.o2CapBonus;
+      if (b.type === 'battery_bank')    simMaxEnergy     += BUILDINGS_INFO.battery_bank.energyCapBonus;
+      if (b.type === 'regolith_depot')  simMaxRegolith   += BUILDINGS_INFO.regolith_depot.regolithCapBonus;
+      if (b.type === 'ice_silo')        simMaxIce        += BUILDINGS_INFO.ice_silo.iceCapBonus;
+      if (b.type === 'component_depot') simMaxComponents += BUILDINGS_INFO.component_depot.componentCapBonus;
     }
 
     // 2. Generatori
@@ -787,14 +816,66 @@ export class EconomyManager {
     this.deltaO2 = simTotalO2Produced - simTotalO2Consumed;
     // FIX: Usa energyRequired anche qui per la UI in tempo reale
     this.deltaEnergy = this.energyProduced - this.energyRequired;
-    this.maxOxygen = simMaxOxygen;
-    this.maxEnergy = simMaxEnergy;
-    this.maxRovers = simMaxRovers;
+    this.maxOxygen     = simMaxOxygen;
+    this.maxEnergy     = simMaxEnergy;
+    this.maxRovers     = simMaxRovers;
+    this.maxRegolith   = simMaxRegolith;
+    this.maxIce        = simMaxIce;
+    this.maxComponents = simMaxComponents;
+
+    // Clamp immediato al nuovo cap (es. dopo demolizione di un deposito)
+    this.regolith     = Math.max(0, Math.min(this.maxRegolith,   this.regolith));
+    this.ice          = Math.max(0, Math.min(this.maxIce,        this.ice));
+    this.components   = Math.max(0, Math.min(this.maxComponents, this.components));
+    this.energyStored = Math.max(0, Math.min(this.maxEnergy,     this.energyStored));
+    this.oxygen       = Math.max(0, Math.min(this.maxOxygen,     this.oxygen));
 
     // Trigger aggiornamenti visivi immediati!
     this._scene._emitResourcesUpdate();
     this._scene._applyBuildingVisuals();
     this._scene._updateStatusIcons();
+  }
+
+  // ===========================================================================
+  // LOCK / UNLOCK RISORSE PER DEPOSITI DISCONNESSI
+  // ===========================================================================
+
+  lockStorageResources(b) {
+    const info = BUILDINGS_INFO[b.type];
+    if (!info) return;
+    if (info.regolithCapBonus) {
+      const locked = Math.min(this.regolith, info.regolithCapBonus);
+      this.regolith -= locked;
+      b._lockedRegolith = (b._lockedRegolith || 0) + locked;
+    }
+    if (info.iceCapBonus) {
+      const locked = Math.min(this.ice, info.iceCapBonus);
+      this.ice -= locked;
+      b._lockedIce = (b._lockedIce || 0) + locked;
+    }
+    if (info.componentCapBonus) {
+      const locked = Math.min(this.components, info.componentCapBonus);
+      this.components -= locked;
+      b._lockedComponents = (b._lockedComponents || 0) + locked;
+    }
+    if (info.energyCapBonus) {
+      const locked = Math.min(this.energyStored, info.energyCapBonus);
+      this.energyStored -= locked;
+      b._lockedEnergy = (b._lockedEnergy || 0) + locked;
+    }
+    if (info.o2CapBonus) {
+      const locked = Math.min(this.oxygen, info.o2CapBonus);
+      this.oxygen -= locked;
+      b._lockedO2 = (b._lockedO2 || 0) + locked;
+    }
+  }
+
+  unlockStorageResources(b) {
+    if (b._lockedRegolith)   { this.regolith      += b._lockedRegolith;   b._lockedRegolith   = 0; }
+    if (b._lockedIce)        { this.ice            += b._lockedIce;        b._lockedIce        = 0; }
+    if (b._lockedComponents) { this.components     += b._lockedComponents; b._lockedComponents = 0; }
+    if (b._lockedEnergy)     { this.energyStored   += b._lockedEnergy;     b._lockedEnergy     = 0; }
+    if (b._lockedO2)         { this.oxygen         += b._lockedO2;         b._lockedO2         = 0; }
   }
 }
 

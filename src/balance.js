@@ -110,6 +110,9 @@ export const COMPONENT_FACTORY_COST = 80; export const COMPONENT_FACTORY_COST_CO
 // Storage
 export const H2O_TANK_COST = 50; export const H2O_TANK_COST_COMP = 20;
 export const BATTERY_BANK_COST = 30; export const BATTERY_BANK_COST_COMP = 30;
+export const REGOLITH_DEPOT_COST = 60; export const REGOLITH_DEPOT_COST_COMP = 0;
+export const ICE_SILO_COST = 40; export const ICE_SILO_COST_COMP = 10;
+export const COMPONENT_DEPOT_COST = 30; export const COMPONENT_DEPOT_COST_COMP = 30;
 
 // Produzione energia
 export const SOLAR_ARRAY_COST = 25; export const SOLAR_ARRAY_COST_COMP = 0;
@@ -179,6 +182,16 @@ export const HAB_MODULE_O2_CONS = 5;
 // =============================================================================
 export const H2O_TANK_O2_CAP_BONUS = 300;
 export const BATTERY_BANK_ENERGY_CAP_BONUS = 100;
+
+// Cap iniziali per le risorse primarie (tunable)
+export const INITIAL_MAX_REGOLITH   = 300;
+export const INITIAL_MAX_ICE        = 100;
+export const INITIAL_MAX_COMPONENTS = 100;
+
+// Bonus per edificio storage (per unità costruita)
+export const REGOLITH_DEPOT_REG_CAP_BONUS   = 200;
+export const ICE_SILO_ICE_CAP_BONUS         = 100;
+export const COMPONENT_DEPOT_COMP_CAP_BONUS = 100;
 
 // =============================================================================
 // REQUISITI EQUIPAGGIO

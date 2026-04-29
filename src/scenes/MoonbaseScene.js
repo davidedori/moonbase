@@ -14,7 +14,7 @@ import { aStarPathfind } from '../utils/pathfinding.js';
 import { Rover } from '../entities/Rover.js';
 import { Building } from '../entities/Building.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
-import { UIManager } from '../ui/UIManager.js';
+import { UIManager, BUILDING_ICONS } from '../ui/UIManager.js';
 import { MissionControl } from '../ui/MissionControl.js';
 import {
   GRID_SIZE,
@@ -68,6 +68,17 @@ import {
   DEPOSIT_POOR_DIST,
   DEPOSIT_NOISE_RANGE,
 } from '../balance.js';
+
+// Mappa tipo-edificio → colore CSS del distretto di appartenenza
+const BUILDING_COLOR = (() => {
+  const map = {};
+  for (const dt of Object.values(DISTRICT_TYPES)) {
+    const c = `var(${dt.cssVar})`;
+    map[dt.centerBuilding] = c;
+    dt.allowedModules.forEach(m => { map[m] = c; });
+  }
+  return map;
+})();
 
 export class MoonbaseScene extends Phaser.Scene {
   constructor() {
@@ -329,6 +340,15 @@ export class MoonbaseScene extends Phaser.Scene {
     const { signal } = this._domAbortController;
     this.game.canvas.addEventListener('contextmenu', (e) => e.preventDefault(), { signal });
 
+    // Nasconde il tooltip quando il cursore è sopra la UI HTML (Phaser non aggiorna il pointer in quel caso)
+    this._cursorOverUI = false;
+    ['#ui-sidebar', '#top-bar', '#mission-alerts-layer', '#build-preview-tooltip'].forEach(sel => {
+      const el = document.querySelector(sel);
+      if (!el) return;
+      el.addEventListener('mouseenter', () => { this._cursorOverUI = true;  this.ui.hideTooltip(); }, { signal });
+      el.addEventListener('mouseleave', () => { this._cursorOverUI = false; }, { signal });
+    });
+
     // --- Camera ---
     const cam = this.cameras.main;
     cam.setZoom(CAMERA_ZOOM);
@@ -420,7 +440,9 @@ export class MoonbaseScene extends Phaser.Scene {
     const pointer = this.input.activePointer;
     const { col, row } = isometricToCartesian(pointer.worldX, pointer.worldY);
 
-    if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE && this.exploredTiles[row][col]) {
+    if (this._cursorOverUI) {
+      this.ui.hideTooltip();
+    } else if (col >= 0 && col < GRID_SIZE && row >= 0 && row < GRID_SIZE && this.exploredTiles[row][col]) {
       const building = this.buildings.find(b => b.col === col && b.row === row && b.type !== 'conduit');
       const damagedConduit = this.buildings.find(b => b.col === col && b.row === row && b.type === 'conduit' && b.isDamaged);
       const rover = this.rovers.find(r => r.col === col && r.row === row);
@@ -432,57 +454,66 @@ export class MoonbaseScene extends Phaser.Scene {
       let tooltipData = null;
 
       if (rover) {
+        const chargeRatio = rover.charge / ROVER_MAX_CHARGE;
+        const hullPct = Math.round(rover.durability);
         tooltipData = {
           title: "Rover Unit",
+          icon: "cpu",
           rows: [
-            { label: "Charge", val: `${rover.charge}/${ROVER_MAX_CHARGE}` },
-            { label: "Hull", val: `${Math.round(rover.durability)}%` }
+            { label: "Charge", icon: "zap",   iconColor: "var(--col-nrg)", val: `${rover.charge} / ${ROVER_MAX_CHARGE}`, valColor: chargeRatio >= 0.5 ? 'green' : chargeRatio >= 0.25 ? 'yellow' : 'red' },
+            { label: "Hull",   icon: "shield",                              val: `${hullPct}%`,                           valColor: hullPct >= 70 ? 'green' : hullPct >= 40 ? 'yellow' : 'red'           },
           ]
         };
       } else if (damagedConduit) {
         tooltipData = {
-          title: "DAMAGED CONDUIT",
+          title: "Damaged Conduit",
+          icon: "alert-triangle",
           rows: [
-            { label: "Status", val: "CRITICAL DAMAGE" },
-            { label: "Repair cost", val: "5 REGOLITH" },
-            { label: "Action", val: "Move Rover here to repair" }
+            { label: "Status",      icon: "activity",                                  val: "Critical Damage", valColor: 'red' },
+            { label: "Repair cost", icon: "layers",  iconColor: "var(--col-reg)",       val: "5 Regolith"                       },
+            { label: "Action",      icon: "move",                                       val: "Bring a Rover",   valColor: 'dim' },
           ]
         };
       } else if (building) {
         const info = BUILDINGS_INFO[building.type];
+        const districtColor = BUILDING_COLOR[building.type];
         tooltipData = {
           title: info.name,
+          icon: BUILDING_ICONS[building.type] ?? 'box',
+          iconColor: districtColor,
           rows: [
-            { label: "Status", val: building.isPowered ? "ONLINE" : "OFFLINE" },
-            { label: "Condition", val: building.connected ? "CONNECTED" : "NO NETWORK" }
+            { label: "Status",  icon: "power", val: building.isPowered ? "Online"    : "Offline",    valColor: building.isPowered  ? 'green' : 'red'    },
+            { label: "Network", icon: "wifi",  val: building.connected  ? "Connected" : "No Network", valColor: building.connected  ? 'green' : 'yellow' },
           ]
         };
       } else if (poi) {
-        // --- Tooltip per i Punti di Interesse ---
         const isSupply = poi.type === 'supply';
         tooltipData = {
-          title: isSupply ? "SUPPLY POD" : "ARTEMIS WRECK",
+          title: isSupply ? "Supply Pod" : "Artemis Wreck",
+          icon: isSupply ? "package" : "anchor",
           rows: [
-            { label: "Type", val: isSupply ? "Resources" : "Salvage" },
-            { label: "Content", val: isSupply ? `+${poi.reward} Components` : `+${poi.reward} Regolith` },
-            { label: "Action", val: "Move Rover here to collect" }
+            { label: "Content", icon: isSupply ? "cpu" : "layers", iconColor: isSupply ? "var(--col-comp)" : "var(--col-reg)", val: isSupply ? `+${poi.reward} Components` : `+${poi.reward} Regolith`, valColor: 'green' },
+            { label: "Action",  icon: "navigation",                                                                             val: "Move Rover here",                                                   valColor: 'dim'   },
           ]
         };
       } else if (terrain === 'crater' || terrain === 'ridge') {
         const terrainName = this.terrainNamesGrid[row][col] || "Unnamed Formation";
         tooltipData = {
           title: terrainName,
+          icon: "mountain",
           rows: [
-            { label: "Type", val: terrain.toUpperCase() },
-            { label: "Status", val: "IMPASSABLE" }, // Indica che non è passabile
-            { label: "Hazard", val: "Extreme Terrain" }
+            { label: "Type",   icon: "map",           val: terrain === 'crater' ? "Crater" : "Ridge" },
+            { label: "Hazard", icon: "alert-triangle", val: "Impassable", valColor: 'red'             },
           ]
         };
       } else if (terrain !== TERRAIN_NORMAL) {
+        const isIce = terrain === TERRAIN_ICE;
         tooltipData = {
           title: terrain.toUpperCase(),
+          icon: isIce ? "snowflake" : "layers",
+          iconColor: isIce ? "var(--col-ice)" : "var(--col-reg)",
           rows: [
-            { label: "Yield", val: `${this.capacityGrid[row][col]} units` }
+            { label: "Yield", icon: "bar-chart-2", val: `${this.capacityGrid[row][col]} units` },
           ]
         };
       }

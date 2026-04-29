@@ -5,7 +5,7 @@
 import { BUILDINGS_INFO, ROVER_COST, ROVER_COST_TYPE, DISTRICT_TYPES } from '../constants.js';
 
 // Lucide icon name per ogni tipo di edificio
-const BUILDING_ICONS = {
+export const BUILDING_ICONS = {
   habitat_hub: 'home',
   logistics_hub: 'package',
   mining_hub: 'pickaxe',
@@ -38,8 +38,9 @@ const RES_META = {
 };
 
 /** Inline `<i data-lucide>` tag — resolved by lucide.createIcons(). */
-function ico(name, size = 14) {
-  return `<i data-lucide="${name}" style="width:${size}px;height:${size}px;display:inline-block;vertical-align:middle;flex-shrink:0;"></i>`;
+function ico(name, size = 14, color = '') {
+  const colorStyle = color ? `color:${color};` : '';
+  return `<i data-lucide="${name}" style="width:${size}px;height:${size}px;display:inline-block;vertical-align:middle;flex-shrink:0;${colorStyle}"></i>`;
 }
 
 /** Re-process any new data-lucide elements injected into the DOM. */
@@ -248,13 +249,12 @@ export class UIManager {
           <span class="chip-mini-text">${Math.round(pct)}%</span>
         </div>`;
 
-      statsEl.innerHTML = `
-        <div><span class="ctx-status-badge ${roverState}">${ico(roverStateIcon, 11)} ${roverStateLabel}</span></div>
+      const roverToggleHtml = !rover.isWreck
+        ? `<div id="_rover-power-toggle" style="display:flex;align-items:center;gap:4px;cursor:pointer;">${ico('power', 12)}<span class="ctx-power-switch ${powered ? 'on' : ''}"></span></div>`
+        : '';
 
-        <div id="_rover-power-toggle" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;">
-          <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
-          <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>
-        </div>
+      statsEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">${roverToggleHtml}<span class="ctx-status-badge ${roverState}">${ico(roverStateIcon, 11)} ${roverStateLabel}</span></div>
 
         <div style="padding:4px 0;">
           <div style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('battery', 13)} <span style="color:${chargeColor};font-weight:700">${rover.charge}</span><span style="color:var(--text-dim);font-size:0.63rem">CHARGE</span></div>
@@ -351,7 +351,13 @@ export class UIManager {
 
       nameEl.innerHTML = `${ico(iconName, 16)} ${info.name ?? building.type}`;
 
-      // Status badge edificio
+      // Status badge + power toggle edificio
+      const bPowered = building.isPowered !== false;
+      const bCanToggle = building.type !== 'conduit' && building.type !== 'command' && !info.alwaysOn && !info.isDistrictCenter;
+      const bToggleHtml = bCanToggle
+        ? `<div id="_building-power-toggle" style="display:flex;align-items:center;gap:4px;cursor:pointer;${building.isConstructing ? 'opacity:0.35;pointer-events:none;' : ''}">${ico('power', 12)}<span class="ctx-power-switch ${bPowered ? 'on' : ''}"></span></div>`
+        : '';
+
       if (opts.buildingState != null) {
         const stateMap = {
           active:       { label: 'ACTIVE',       icon: 'check-circle',   cls: 'active' },
@@ -369,7 +375,7 @@ export class UIManager {
           else if (building._lackingCrew)
             extraBadge = `<span class="ctx-status-badge standby">${ico('user-x', 11)} LACKS CREW</span>`;
         }
-        statsEl.innerHTML = `<div style="margin-bottom:4px;"><span class="ctx-status-badge ${sm.cls}">${ico(sm.icon, 11)} ${sm.label}</span>${extraBadge}</div>`;
+        statsEl.innerHTML = `<div style="margin-bottom:4px;display:flex;align-items:center;gap:8px;">${bToggleHtml}<span class="ctx-status-badge ${sm.cls}">${ico(sm.icon, 11)} ${sm.label}</span>${extraBadge}</div>`;
       }
 
       const previewSrc = BUILDING_PREVIEWS[building.type];
@@ -380,16 +386,10 @@ export class UIManager {
         const { district, districtDef, slots } = opts.districtInfo;
         const distType = district.type;
         const distDefIcon = districtDef?.icon ?? iconName;
-        const connIco = district.connected
-          ? `<span style="color:var(--green)">${ico('check-circle')} Connected</span>`
-          : `<span style="color:var(--red)">${ico('x-circle')} Conduit missing</span>`;
-
         if (distIconEl) {
           distIconEl.innerHTML = `<span class="dist-icon-diamond panel-lg type-${distType}">${ico(distDefIcon, 22)}</span>`;
         }
         nameEl.innerHTML = info.name ?? building.type;
-
-        statsEl.innerHTML += `<div style="margin-top:2px;">${connIco}</div>`;
 
         // Moduli Occupati
         const occupiedSlots = slots.filter(s => s.module !== null);
@@ -402,13 +402,6 @@ export class UIManager {
             : mod._econActive === false ? 'standby'
             : 'active';
           row.innerHTML = `<span style="font-size:0.72rem;color:var(--white);display:flex;align-items:center;gap:4px;"><span class="module-status-dot ${modState}"></span>${ico(BUILDING_ICONS[mod.type] ?? 'box')} ${modInfo.name ?? mod.type}</span>`;
-
-          const removeBtn = document.createElement('button');
-          removeBtn.style.cssText = 'padding:2px 8px;font-size:0.65rem;font-family:"Space Mono","Courier New",monospace;background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.4);color:var(--red);border-radius:32px;cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;';
-          removeBtn.innerHTML = `${ico('x', 11)} REMOVE`;
-          removeBtn.addEventListener('click', () => opts.onRemoveModule?.(district, slot.index));
-
-          row.appendChild(removeBtn);
           actionsEl.appendChild(row);
         });
 
@@ -427,20 +420,6 @@ export class UIManager {
                 <span class="chip-mini-text">${effPct}%</span>
               </div>
             </div>`;
-        }
-
-        // Power toggle distretto (sopra BUILD MODULE)
-        if (building.type !== 'command' && !info.alwaysOn) {
-          const powered = building.isPowered !== false;
-          const distPowerRow = document.createElement('div');
-          distPowerRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;';
-          distPowerRow.innerHTML = `
-            <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
-            <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>`;
-          if (!building.isConstructing) {
-            distPowerRow.addEventListener('click', () => opts.onTogglePower?.(building));
-          }
-          actionsEl.appendChild(distPowerRow);
         }
 
         // Slot Liberi e Bottoni Costruzione Moduli
@@ -494,8 +473,6 @@ export class UIManager {
             else if (!hasCompatibleSlot) errorMsg = ` [NO COMPATIBLE SLOT]`;
             else if (!regOk || !compOk) errorMsg = ` [INSUFFICIENT RESOURCES]`;
 
-            const isDeficit = (opts.energyProduced ?? 1) < (opts.energyRequired ?? 0);
-            if (!errorMsg && isDeficit) errorMsg = ' [INSUFFICIENT GRID POWER]';
 
             btn.innerHTML = `
               <div class="ctx-btn-title">${ico(BUILDING_ICONS[modType] ?? 'box')} ${modInfo.name ?? modType}</div>
@@ -510,8 +487,7 @@ export class UIManager {
       }
 
       // ── Helper per header di sezione ────────────────────────────────────────
-      const sH = (label) =>
-        `<div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin:8px 0 4px;padding-top:6px;border-top:1px solid var(--ghost-border);">${label}</div>`;
+      const sH = (label) => `<div class="section-header">${label}</div>`;
       const rI = (iconName, val, color) =>
         `<span style="color:${color};display:inline-flex;align-items:center;gap:3px;">${ico(iconName, 12)} ${val}</span>`;
       const ROW = (items) =>
@@ -521,8 +497,8 @@ export class UIManager {
       if (['regolith_extractor', 'ice_extractor', 'deep_drill'].includes(building.type)) {
         const cap = opts.capacity ?? 0;
         const capColor = cap > 50 ? 'var(--white)' : 'var(--red)';
-        statsEl.innerHTML += sH('DEPOSITO');
-        statsEl.innerHTML += ROW([rI('database', `${cap} unità`, capColor)]);
+        statsEl.innerHTML += sH('DEPOSIT REMAINING');
+        statsEl.innerHTML += ROW([rI('database', `${cap} units`, capColor)]);
       }
 
       // 2b. Costi di esercizio
@@ -538,18 +514,8 @@ export class UIManager {
       if (info.o2Cons > 0) costItems.push(rI('wind', `−${info.o2Cons}`, 'var(--red)'));
 
       if (costItems.length > 0) {
-        statsEl.innerHTML += sH('COSTI DI ESERCIZIO');
+        statsEl.innerHTML += sH('OPERATING COSTS');
         statsEl.innerHTML += ROW(costItems);
-        // Grid status
-        if (info.energyCons > 0) {
-          const ep = opts.energyProduced ?? 0, er = opts.energyRequired ?? 0, es = opts.energyStored ?? 0;
-          const isBlackout = er > ep && es <= 0;
-          const isDeficit  = er > ep && !isBlackout;
-          const gc = isBlackout ? 'blackout' : isDeficit ? 'deficit' : 'ok';
-          const gl = isBlackout ? 'GRID: BLACKOUT' : isDeficit ? 'GRID: DEFICIT' : 'GRID: OK';
-          const gi = isBlackout ? 'zap-off' : isDeficit ? 'alert-triangle' : 'check';
-          statsEl.innerHTML += `<div class="ctx-grid-status ${gc}" style="margin-top:4px;">${ico(gi, 11)} ${gl}</div>`;
-        }
       }
 
       // 2c. Produzione / Effetti
@@ -579,7 +545,7 @@ export class UIManager {
       }
 
       if (effectItems.length > 0) {
-        statsEl.innerHTML += sH('PRODUZIONE');
+        statsEl.innerHTML += sH('PRODUCTION');
         statsEl.innerHTML += ROW(effectItems);
       }
 
@@ -593,60 +559,58 @@ export class UIManager {
           const { habCount, habBonus, hasCommandBonus } = opts.clusterBonus;
           synergyItems.push(habBonus > 0
             ? rI('users', `+${habBonus}`, 'var(--col-crew)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${habCount} HAB)</span>`
-            : hint('+ HAB → più crew'));
+            : hint('+ HAB → more crew'));
           synergyItems.push(hasCommandBonus
             ? rI('zap', '0 E', 'var(--green)')
             : hint('command → 0 E'));
         } else if (buildingType === 'solar_array') {
           synergyItems.push(bonus > 0
-            ? rI('zap', `+${bonus}`, 'var(--green)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count + 1} pannelli)</span>`
-            : hint('2+ pannelli → bonus'));
+            ? rI('zap', `+${bonus}`, 'var(--green)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count + 1} panels)</span>`
+            : hint('2+ panels → bonus'));
         } else if (buildingType === 'isru_plant') {
           synergyItems.push(bonus > 0
-            ? rI('wind', `+${bonus}`, 'var(--col-o2)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            ? rI('wind', `+${bonus}`, 'var(--col-o2)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} extractors)</span>`
             : hint('+ ice extractors → bonus O₂'));
         } else if (buildingType === 'component_factory') {
           synergyItems.push(bonus > 0
-            ? rI('cpu', `+${bonus}`, 'var(--col-comp)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
+            ? rI('cpu', `+${bonus}`, 'var(--col-comp)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} extractors)</span>`
             : hint('+ reg extractors → bonus'));
         } else if (buildingType === 'regolith_extractor') {
           synergyItems.push(bonus > 0
-            ? rI('layers', `+${bonus}`, 'var(--col-reg)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
-            : hint('+ estrattori → bonus'));
+            ? rI('layers', `+${bonus}`, 'var(--col-reg)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} extractors)</span>`
+            : hint('+ extractors → bonus'));
         } else if (buildingType === 'ice_extractor') {
           synergyItems.push(bonus > 0
-            ? rI('snowflake', `+${bonus}`, 'var(--col-ice)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} estrattori)</span>`
-            : hint('+ estrattori → bonus'));
+            ? rI('snowflake', `+${bonus}`, 'var(--col-ice)') + `<span style="color:var(--text-dim);font-size:0.6rem;"> (${count} extractors)</span>`
+            : hint('+ extractors → bonus'));
         }
 
         if (synergyItems.length > 0) {
-          statsEl.innerHTML += sH('SINERGIE');
+          statsEl.innerHTML += sH('SYNERGIES');
           statsEl.innerHTML += `<div style="display:flex;flex-direction:column;gap:4px;">${synergyItems.join('')}</div>`;
         }
       }
+
+      // Wire toggle power (dopo tutti gli innerHTML +=, altrimenti il listener viene perso)
+      statsEl.querySelector('#_building-power-toggle')?.addEventListener('click', () => opts.onTogglePower?.(building));
 
       // 4. Azioni (Bottoni Base)
       if (building.type === 'rover_workshop' || building.type === 'command') {
         this._addBuildRoverButton(actionsEl, warningsEl, opts);
       }
 
-      if (building.type !== 'conduit' && building.type !== 'command' && !info.alwaysOn && !info.isDistrictCenter) {
-        const powered = building.isPowered !== false;
-        const toggleRow = document.createElement('div');
-        toggleRow.style.cssText = `display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer;${building.isConstructing ? 'opacity:0.35;pointer-events:none;' : ''}`;
-        toggleRow.innerHTML = `
-          <span style="display:flex;align-items:center;gap:6px;font-size:0.75rem;">${ico('power', 13)} POWER</span>
-          <span class="ctx-power-switch ${powered ? 'on' : ''}"></span>`;
-        if (!building.isConstructing) {
-          toggleRow.addEventListener('click', () => opts.onTogglePower?.(building));
-        }
-        actionsEl.appendChild(toggleRow);
+      const hasActions = info.crewReq > 0 || !opts.hideDemolish;
+      if (hasActions) {
+        const actionsHeader = document.createElement('div');
+        actionsHeader.className = 'section-header';
+        actionsHeader.innerText = 'ACTIONS';
+        actionsEl.appendChild(actionsHeader);
       }
 
       if (info.crewReq > 0) {
         const btnPriority = document.createElement('button');
         btnPriority.className = 'ghost-btn';
-        btnPriority.style.cssText = 'padding:8px 16px; font-size:11px; width:100%; margin-top:4px; border:1px solid rgba(240, 240, 250, 0.35);';
+        btnPriority.style.cssText = 'width:100%; margin-top:4px;';
         if (building.isHighPriority) {
           btnPriority.style.background = 'rgba(240, 240, 250, 0.15)';
           btnPriority.innerHTML = `${ico('check-square')} PRIORITY OVERRIDE: ACTIVE`;
@@ -662,14 +626,12 @@ export class UIManager {
         const roverAdiacent = opts.canDemolish;
 
         if (building.isConstructing) {
-          let totalRefund = info.cost ?? 0;
-          if (building.autoConnectCost) totalRefund += building.autoConnectCost;
           btnDemolish.className = 'ghost-btn';
-          btnDemolish.style.cssText = 'width:100%; margin-top:8px;';
-          btnDemolish.innerHTML = `${ico('rotate-ccw')} CANCEL [100% REFUND: ${totalRefund} REG]`;
+          btnDemolish.style.cssText = 'width:100%; margin-top:4px;';
+          btnDemolish.innerHTML = `${ico('rotate-ccw')} CANCEL [100% REFUND]`;
         } else {
-          btnDemolish.className = 'ghost-btn danger-border';
-          btnDemolish.style.cssText = 'width:100%; margin-top:8px; border-color:rgba(248,81,73,0.4); color:#f85149;';
+          btnDemolish.className = 'ghost-btn danger';
+          btnDemolish.style.cssText = 'width:100%; margin-top:4px;';
           btnDemolish.innerHTML = `${ico('hammer')} DEMOLISH <span style="opacity:0.6; font-size:10px;">[50% REFUND]</span>`;
         }
 
@@ -1063,19 +1025,25 @@ export class UIManager {
     const el = document.getElementById('game-tooltip');
     if (!el) return;
 
-    let content = `<div class="tooltip-title">${data.title}</div>`;
-    if (data.rows) {
+    const headerIcon = data.icon ? ico(data.icon, 13, data.iconColor || '') : '';
+    let content = `<div class="tooltip-header">${headerIcon}<span class="tooltip-title">${data.title}</span></div>`;
+    if (data.rows?.length) {
       data.rows.forEach(row => {
-        content += `<div class="tooltip-row"><span>${row.label}</span><span class="tooltip-val">${row.val}</span></div>`;
+        const rowIcon = row.icon ? ico(row.icon, 11, row.iconColor || '') : '';
+        const valClass = row.valColor ? ` tooltip-val--${row.valColor}` : '';
+        content += `<div class="tooltip-row"><span class="tooltip-label">${rowIcon}${row.label}</span><span class="tooltip-val${valClass}">${row.val}</span></div>`;
       });
     }
 
-    el.innerHTML = content;
-    el.classList.remove('hidden');
+    if (el.dataset.lastContent !== content) {
+      el.innerHTML = content;
+      el.dataset.lastContent = content;
+      refreshIcons();
+    }
 
-    // Posizionamento (offset rispetto al mouse)
+    el.classList.remove('hidden');
     el.style.left = `${x + 15}px`;
-    el.style.top = `${y + 15}px`;
+    el.style.top  = `${y + 15}px`;
   }
 
   hideTooltip() {
@@ -1096,69 +1064,85 @@ export class UIManager {
     const previewSrc = BUILDING_PREVIEWS[type] || null;
     const iconName = BUILDING_ICONS[type] || 'box';
 
-    // 1. Titolo
-    let html = `<div class="bp-title">${ico(iconName, 20)} ${info.name}</div>`;
+    // Trova il tipo distretto se applicabile (usato sia per l'icona che per i sub-moduli)
+    const dTypeKey = info.isDistrictCenter
+      ? Object.keys(DISTRICT_TYPES).find(k => DISTRICT_TYPES[k].centerBuilding === type)
+      : null;
+    const dDef = dTypeKey ? DISTRICT_TYPES[dTypeKey] : null;
 
-    // 2. Immagine grande
+    // 1. Immagine + eventuale icona distretto sovrapposta (come nella sidebar)
+    let html = '';
     if (previewSrc) {
       html += `<div class="bp-img-box"><img src="${previewSrc}" alt="${info.name}"></div>`;
-    } else {
-      html += `<div class="bp-img-box empty">[ NO VISUAL DATA ]</div>`;
+    }
+    if (info.isDistrictCenter && dTypeKey) {
+      const distDefIcon = dDef.icon ?? iconName;
+      html += `<div style="padding-left:2px;margin-top:${previewSrc ? '-36px' : '0'};margin-bottom:4px;position:relative;z-index:2;">
+        <span class="dist-icon-diamond panel-lg type-${dTypeKey}">${ico(distDefIcon, 22)}</span>
+      </div>`;
     }
 
-    // 3. Costi
-    html += `<div class="bp-section">COSTS</div><div class="bp-grid">`;
+    // 2. Titolo
+    html += `<div class="bp-title">${info.name}</div>`;
+
+    // 3. Costo costruzione
+    html += `<div class="section-header">CONSTRUCTION COST</div><div class="bp-grid">`;
     let hasCost = false;
     if (info.cost > 0) { html += `<div style="color:var(--col-reg)">${ico('layers')} ${info.cost} Regolith</div>`; hasCost = true; }
     if (info.costComponents > 0) { html += `<div style="color:var(--col-comp)">${ico('cpu')} ${info.costComponents} Components</div>`; hasCost = true; }
     if (!hasCost) html += `<div style="color:var(--text-dim)">Free Structure</div>`;
     html += `</div>`;
 
-    // 4. Statistiche & Consumi
-    html += `<div class="bp-section">STATS & PRODUCTION</div><div class="bp-grid">`;
-    let hasStats = false;
+    // 4. Costi operativi
+    const opCostItems = [];
+    if (info.energyCons > 0) opCostItems.push(`<div style="color:var(--red)">${ico('zap')} −${info.energyCons} E/tick</div>`);
+    if (info.crewReq > 0)    opCostItems.push(`<div style="color:var(--col-crew)">${ico('user')} ×${info.crewReq} Crew</div>`);
+    if (info.o2Cons > 0)     opCostItems.push(`<div style="color:var(--red)">${ico('wind')} −${info.o2Cons} O₂/tick</div>`);
+    if (opCostItems.length > 0) {
+      html += `<div class="section-header">OPERATING COSTS</div><div class="bp-grid">${opCostItems.join('')}</div>`;
+    }
 
-    // Supporto Vitale e Crew
-    if (info.crewReq > 0) { html += `<div style="color:var(--text-dim)">${ico('user')} Required Crew: ${info.crewReq}</div>`; hasStats = true; }
-    if (info.crewGen > 0) { html += `<div style="color:var(--green)">${ico('users')} Max Crew Capacity: +${info.crewGen}</div>`; hasStats = true; }
-    if (info.o2Cons > 0) { html += `<div style="color:var(--red)">${ico('wind')} O₂ Consumption: -${info.o2Cons}/tick</div>`; hasStats = true; }
-    if (info.o2CapBonus > 0) { html += `<div style="color:var(--col-o2)">${ico('chevrons-up')} O₂ Storage: +${info.o2CapBonus}</div>`; hasStats = true; }
-
-    // Energia
-    if (info.energyCons > 0) { html += `<div style="color:var(--red)">${ico('zap')} Power Need: -${info.energyCons} E/tick</div>`; hasStats = true; }
-    if (info.energyGenDay > 0) { html += `<div style="color:var(--green)">${ico('zap')} Power Gen: +${info.energyGenDay} E/tick (Day)</div>`; hasStats = true; }
-    if (info.energyGenNight > 0) { html += `<div style="color:var(--green)">${ico('zap')} Power Gen: +${info.energyGenNight} E/tick (Night)</div>`; hasStats = true; }
-    if (info.energyCapBonus > 0) { html += `<div style="color:#ffd700">${ico('chevrons-up')} Battery Storage: +${info.energyCapBonus} E</div>`; hasStats = true; }
-
-    // Risorse Grezze
-    if (info.regolithGen > 0) { html += `<div style="color:var(--col-reg)">${ico('layers')} Yield: +${info.regolithGen} Regolith/tick</div>`; hasStats = true; }
-    if (info.iceGen > 0) { html += `<div style="color:var(--col-ice)">${ico('snowflake')} Yield: +${info.iceGen} Ice/tick</div>`; hasStats = true; }
-
-    // Conversioni Complesse (ISRU, Component Factory, ecc)
+    // 5. Produzione
+    const prodItems = [];
+    if (info.crewGen > 0)        prodItems.push(`<div style="color:var(--col-crew)">${ico('users')} +${info.crewGen} Crew capacity</div>`);
+    if (info.o2CapBonus > 0)     prodItems.push(`<div style="color:var(--col-o2)">${ico('wind')} +${info.o2CapBonus} O₂ storage</div>`);
+    if (info.energyGenDay > 0) {
+      const dayOnly = !info.energyGenNight || info.energyGenNight === 0;
+      prodItems.push(`<div style="color:var(--green)">${ico('zap')} +${info.energyGenDay} E/tick${dayOnly ? ' (Day)' : ' (Day)'}</div>`);
+      if (info.energyGenNight > 0 && info.energyGenNight !== info.energyGenDay)
+        prodItems.push(`<div style="color:var(--col-nrg)">${ico('zap')} +${info.energyGenNight} E/tick (Night)</div>`);
+    }
+    if (info.energyCapBonus > 0) prodItems.push(`<div style="color:var(--col-nrg)">${ico('battery-full')} +${info.energyCapBonus} E battery</div>`);
+    if (info.regolithGen > 0)    prodItems.push(`<div style="color:var(--col-reg)">${ico('layers')} +${info.regolithGen} Regolith/tick</div>`);
+    if (info.iceGen > 0)         prodItems.push(`<div style="color:var(--col-ice)">${ico('snowflake')} +${info.iceGen} Ice/tick</div>`);
     if (info.conversion) {
       const { inputRes, inputCost, outputRes, outputAmount } = info.conversion;
       const inM = RES_META[inputRes] || { icon: 'circle', color: 'inherit' };
       const outM = RES_META[outputRes] || { icon: 'circle', color: 'inherit' };
-      html += `<div style="color:var(--text-dim); grid-column: 1 / -1;">
-        ${ico('refresh-cw')} Converts <span style="color:${inM.color}">${inputCost} ${inputRes}</span> ${ico('arrow-right', 12)} <span style="color:${outM.color}">${outputAmount} ${outputRes}</span>/tick
-      </div>`;
-      hasStats = true;
+      prodItems.push(`<div style="color:var(--text-dim)">${ico('refresh-cw')} <span style="color:${inM.color}">${inputCost} ${inputRes}</span> ${ico('arrow-right', 12)} <span style="color:${outM.color}">${outputAmount} ${outputRes}</span>/tick</div>`);
+    }
+    if (prodItems.length > 0) {
+      html += `<div class="section-header">PRODUCTION</div><div class="bp-grid">${prodItems.join('')}</div>`;
+    } else if (opCostItems.length === 0 && !info.isDistrictCenter) {
+      html += `<div class="section-header">PRODUCTION</div><div class="bp-grid"><div style="color:var(--text-dim)">Passive structure</div></div>`;
     }
 
-    // Altri dati e Hard Caps
-    if (info.maxPerDistrict) { html += `<div style="color:var(--yellow)">${ico('alert-triangle')} Hard Cap: ${info.maxPerDistrict} per District</div>`; hasStats = true; }
+    // 6. Requisiti (terreno + hard cap)
+    const reqItems = [];
     if (info.terrain === 'regolith' || info.terrain === 'ice') {
       const tColor = info.terrain === 'ice' ? 'var(--col-ice)' : 'var(--col-reg)';
-      html += `<div style="color:${tColor}">${ico('map-pin')} Requires ${info.terrain.toUpperCase()} vein</div>`;
-      hasStats = true;
+      reqItems.push(`<div style="color:${tColor}">${ico('map-pin')} Requires ${info.terrain.toUpperCase()} vein</div>`);
+    }
+    if (info.maxPerDistrict) {
+      reqItems.push(`<div style="color:var(--yellow)">${ico('alert-triangle')} Max ${info.maxPerDistrict} per District</div>`);
+    }
+    if (reqItems.length > 0) {
+      html += `<div class="section-header">REQUIREMENTS</div><div class="bp-grid">${reqItems.join('')}</div>`;
     }
 
-    if (!hasStats) html += `<div style="color:var(--text-dim)">Passive Structure (No active stats)</div>`;
-    html += `</div>`;
-
-    // 5. Bonus Sinergia (es. Pannelli Solari vicini)
+    // 7. Sinergie
     if (info.clusterSynergies) {
-      html += `<div class="bp-section">SYNERGY BONUS</div><div class="bp-grid">`;
+      html += `<div class="section-header">SYNERGIES</div><div class="bp-grid">`;
       const synType = Object.keys(info.clusterSynergies)[0];
       const val = info.clusterSynergies[synType].valuePerBuilding;
       const synName = BUILDINGS_INFO[synType]?.name || synType;
@@ -1166,12 +1150,10 @@ export class UIManager {
       html += `</div>`;
     }
 
-    // 6. Moduli Installabili (Solo per i Centri Distretto)
-    if (info.isDistrictCenter) {
-      const dTypeKey = Object.keys(DISTRICT_TYPES).find(k => DISTRICT_TYPES[k].centerBuilding === type);
-      if (dTypeKey) {
-        const dDef = DISTRICT_TYPES[dTypeKey];
-        html += `<div class="bp-section">ALLOWED SUB-MODULES</div><div class="bp-grid">`;
+    // 8. Sub-moduli installabili (solo per centri distretto)
+    if (info.isDistrictCenter && dDef) {
+      {
+        html += `<div class="section-header">SUB-MODULES</div><div class="bp-grid">`;
         for (const mod of dDef.allowedModules) {
           const mInfo = BUILDINGS_INFO[mod];
           html += `<div style="color:var(--white)">${ico(BUILDING_ICONS[mod] || 'box')} ${mInfo.name}</div>`;
@@ -1187,7 +1169,7 @@ export class UIManager {
     el.classList.add('visible');
 
     // Posizionamento: a sinistra della sidebar
-    const tooltipWidth = 320;
+    const tooltipWidth = 260;
     const gap = 16;
     let leftPos = rect.left - tooltipWidth - gap;
     let topPos = rect.top;

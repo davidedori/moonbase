@@ -431,6 +431,8 @@ export class Rover extends Phaser.GameObjects.Sprite {
   // ---------------------------------------------------------------------------
 
   destroy(fromScene) {
+    this._moveTween?.stop();
+    this._engineTween?.stop();
     this._rechargeTimer?.remove(false);
     this._shadow?.destroy();
     this._shadow = null;

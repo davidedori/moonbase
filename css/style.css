@@ -1949,3 +1949,249 @@ a:active,
 .tooltip-val--yellow { color: var(--yellow); }
 .tooltip-val--red    { color: var(--red); }
 .tooltip-val--dim    { color: var(--text-dim); font-weight: 400; }
+
+/* =============================================================================
+   SPLASH SCREEN + MAIN MENU
+============================================================================= */
+
+/* Hide game UI until the game actually starts */
+body.pre-game #top-bar,
+body.pre-game #main-area { visibility: hidden; }
+
+/* ── Splash ────────────────────────────────────────────────────────────────── */
+
+#splash-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+  pointer-events: none;
+}
+#splash-overlay.splash-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#splash-overlay.splash-out {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.splash-title {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em; /* compensa trailing space del letter-spacing */
+  color: var(--white);
+  text-shadow: 0 0 40px rgba(240, 240, 250, 0.35);
+}
+
+.splash-tagline {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.22em;
+  padding-left: 0.22em; /* compensa trailing space del letter-spacing */
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 14px;
+  opacity: 0;
+  transition: opacity 1.2s ease 1.8s;
+}
+#splash-overlay.splash-visible .splash-tagline {
+  opacity: 1;
+}
+
+/* ── Main Menu ─────────────────────────────────────────────────────────────── */
+
+#menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+  pointer-events: none;
+}
+#menu-overlay.menu-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#menu-overlay.menu-visible .menu-panel {
+  opacity: 1;
+}
+
+.menu-panel {
+  background: rgba(12, 15, 20, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ghost-border);
+  border-radius: 4px;
+  padding: 44px 56px 36px;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  will-change: opacity;
+  transition: opacity 1.4s ease 0.2s;
+}
+
+.menu-header {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.menu-back-btn {
+  font-size: 0.65rem !important;
+  padding: 4px 10px !important;
+  letter-spacing: 0.08em !important;
+}
+
+.menu-page-title {
+  font-size: 0.65rem;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.menu-brand {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: 1.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: var(--white);
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.menu-content {
+  transition: opacity 0.15s ease;
+  min-height: 120px;
+}
+
+.menu-nav-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-nav-btn {
+  width: 100%;
+  padding: 12px 20px;
+  background: var(--ghost-bg);
+  border: 1px solid var(--ghost-border-str);
+  border-radius: 4px;
+  color: var(--white);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.menu-nav-btn:hover {
+  background: var(--ghost-bg-hover);
+  border-color: rgba(240, 240, 250, 0.45);
+  color: #fff;
+}
+.menu-nav-btn:active {
+  background: var(--ghost-bg-active);
+}
+
+.menu-footer {
+  margin-top: 32px;
+  font-size: 0.58rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  text-align: center;
+  opacity: 0.6;
+}
+
+/* ── Loading Screen ────────────────────────────────────────────────────────── */
+
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+  pointer-events: none;
+}
+#loading-overlay.loading-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+#loading-overlay.loading-out {
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+
+.loading-logo {
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  padding-left: 0.3em;
+  color: var(--white);
+  text-shadow: 0 0 40px rgba(240, 240, 250, 0.35);
+}
+
+.loading-bar-wrap {
+  width: 240px;
+  height: 3px;
+  background: rgba(240, 240, 250, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 28px;
+}
+
+.loading-bar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: var(--white);
+  transition: width 0.25s ease;
+}
+
+.loading-label {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  padding-left: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 12px;
+}
+
+/* ── Menu placeholder ──────────────────────────────────────────────────────── */
+
+.menu-placeholder {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  text-align: center;
+  padding: 24px 0 8px;
+}

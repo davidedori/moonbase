@@ -2882,11 +2882,20 @@ export class MoonbaseScene extends Phaser.Scene {
 
       this.rovers.forEach(r => r.pauseMovement());
     } else {
-      // --- AGGIUNTA: Ripristina tutte le animazioni
+      // Ferma i move tween di rover che non possono muoversi prima di riprendere tutto
+      this.rovers.forEach(r => {
+        if (r._moveTween && (!r.hasCrew || !r.isPowered || r.isWreck || r.charge <= 0)) {
+          r._moveTween.stop();
+          r._moveTween = null;
+          r.moving = false;
+          r._path = [];
+        }
+      });
+
       this.tweens.resumeAll();
 
       this.rovers.forEach(r => {
-        if (r.hasCrew && r.charge > 0) r.resumeMovement();
+        if (r.hasCrew && r.charge > 0 && r.isPowered && !r.isWreck) r.resumeMovement();
       });
     }
   }
@@ -3657,14 +3666,26 @@ export class MoonbaseScene extends Phaser.Scene {
 
     rover.on('pointerdown', () => {
       if (this.isGameOver) return;
-      // Se è un relitto e hai un rover attivo nelle vicinanze, riciclalo
-      if (rover.isWreck && this.selectedRover && !this.selectedRover.moving) {
-        this._recycleWreck(this.selectedRover, rover);
+
+      if (rover.isWreck) {
+        if (this.selectedRover && !this.selectedRover.moving) {
+          // Rover attivo selezionato → ricicla il relitto
+          this._recycleWreck(this.selectedRover, rover);
+        } else {
+          // Nessun rover attivo → mostra info relitto come pannello POI
+          this._deselectRover();
+          this.selectedBuilding = null;
+          this.selectedDistrict = null;
+          this.selectedEntity = { type: 'rover', ref: rover };
+          this._showSelectionIndicator('rover');
+          this._updateContextPanel();
+        }
+        return;
       }
-      else if (this.selectedBuilding === 'conduit' && this.selectedRover === rover) {
+
+      if (this.selectedBuilding === 'conduit' && this.selectedRover === rover) {
         this._tryPlaceBuilding(rover.col, rover.row);
-      }
-      else {
+      } else {
         this._selectRover(rover);
       }
     });

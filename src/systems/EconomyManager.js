@@ -255,6 +255,7 @@ export class EconomyManager {
     // Sprint 3: Solar Flare effect
     if (this._solarFlareTicksRemaining > 0) {
       this.energyProduced *= SOLAR_FLARE_ENERGY_MULT;
+      this._solarFlareTicksRemaining--;
     }
 
     // -------------------------------------------------------------------------
@@ -538,6 +539,7 @@ export class EconomyManager {
     });
 
     this._triggerRandomEvent();
+    this.updateProjections();
   }
 
   _triggerMicrometeorites() {
@@ -678,7 +680,10 @@ export class EconomyManager {
     for (const b of this.buildings) {
       if (b.connected === false || b.isPowered === false || b.isConstructing) continue;
       const info = BUILDINGS_INFO[b.type];
-      if (info && info.energyCons) this.energyRequired += info.energyCons;
+      if (info && info.energyCons) {
+        if (b.type === 'hab_module' && b.district && b.district.type === 'command' && b.district.connected) continue;
+        this.energyRequired += info.energyCons;
+      }
     }
 
     // 4. Habitat

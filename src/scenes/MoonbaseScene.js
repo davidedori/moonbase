@@ -16,6 +16,9 @@ import { Building } from '../entities/Building.js';
 import { EconomyManager } from '../systems/EconomyManager.js';
 import { UIManager, BUILDING_ICONS } from '../ui/UIManager.js';
 import { MissionControl } from '../ui/MissionControl.js';
+import { LocalStorageAdapter } from '../systems/StorageAdapter.js';
+import { SaveManager } from '../systems/SaveManager.js';
+import { SaveSlotMenu } from '../ui/SaveSlotMenu.js';
 import {
   GRID_SIZE,
   TILE_W,
@@ -145,7 +148,9 @@ export class MoonbaseScene extends Phaser.Scene {
   // INIT  (stato reset-able)
   // ===========================================================================
 
-  init() {
+  init(data) {
+    this._loadSlotOnCreate = data?.loadSlot ?? null;
+
     this.selectedBuilding = null;
     this.selectedDistrict = null;
     this.selectedRover = null;
@@ -237,6 +242,10 @@ export class MoonbaseScene extends Phaser.Scene {
 
     // --- MissionControl (Sprint 4) ---
     this.missionControl = new MissionControl(this._emitter, this.ui);
+
+    // --- SaveManager ---
+    this._saveAdapter = new LocalStorageAdapter();
+    this.saveManager = new SaveManager(this._saveAdapter);
 
     // Ascolta game-over dalla scena (per fermare i rover)
     this._emitter.on('game-over', () => {
@@ -407,6 +416,15 @@ export class MoonbaseScene extends Phaser.Scene {
     // Forza il primo tick per aggiornare UI e applicare buff iniziali
     this.economy.processEconomyTick();
     this.economy.startEconomyLoop();
+
+    // --- Carica slot se richiesto dal menu (es. CONTINUA o slot specifico) ---
+    if (this._loadSlotOnCreate) {
+      this.saveManager.loadFromSlot(this._loadSlotOnCreate, this).then(() => {
+        this.saveManager.startAutosave(this);
+      });
+    } else {
+      this.saveManager.startAutosave(this);
+    }
 
     // --- Musica di sottofondo ---
     // Il browser blocca l'audio finché l'utente non interagisce con la pagina.
@@ -4236,9 +4254,9 @@ export class MoonbaseScene extends Phaser.Scene {
       right: this.input.keyboard.addKey('D'),
     };
 
-    // --- Debug: salva (O) / carica (P) ---
-    this.input.keyboard.on('keydown-O', () => this.saveGameState());
-    this.input.keyboard.on('keydown-P', () => this.loadGameState());
+    // --- Salva (O) / Carica (P) ---
+    this.input.keyboard.on('keydown-O', () => this._openSaveMenu());
+    this.input.keyboard.on('keydown-P', () => this._openLoadMenu());
 
     // --- ESC: annulla modalità costruzione ---
     this.input.keyboard.on('keydown-ESC', () => {
@@ -4387,7 +4405,69 @@ export class MoonbaseScene extends Phaser.Scene {
   }
 
   // ===========================================================================
-  // SAVE / LOAD  (localStorage, hotkeys O / P)
+  // SAVE / LOAD — UI menu slot
+  // ===========================================================================
+
+  /** Apre il menu di salvataggio (hotkey O o menu in-game) */
+  _openSaveMenu() {
+    if (this.isGameOver) return;
+    this._setPauseForMenu(true);
+    const menu = new SaveSlotMenu({
+      saveManager: this.saveManager,
+      mode: 'save',
+      onClose: () => {
+        menu.hide();
+        this._setPauseForMenu(false);
+      },
+      onAction: async (slotId, saveName) => {
+        await this.saveManager.saveToSlot(slotId, this, saveName);
+        menu.refresh();
+      },
+    });
+    menu.show();
+  }
+
+  /** Apre il menu di caricamento (hotkey P o menu in-game) */
+  _openLoadMenu() {
+    this._setPauseForMenu(true);
+    const menu = new SaveSlotMenu({
+      saveManager: this.saveManager,
+      mode: 'load',
+      onClose: () => {
+        menu.hide();
+        this._setPauseForMenu(false);
+      },
+      onAction: async (slotId) => {
+        menu.hide(() => {
+          this.saveManager.loadFromSlot(slotId, this).then(() => {
+            this._setPauseForMenu(false);
+          });
+        });
+      },
+    });
+    menu.show();
+  }
+
+  /**
+   * Pausa/riprende il gioco per mostrare un menu overlay.
+   * Usa lo stesso meccanismo di _togglePause senza toccare il bottone UI.
+   */
+  _setPauseForMenu(paused) {
+    this.economy.isPaused = paused;
+    this.time.paused = paused;
+    if (paused) {
+      this.tweens.pauseAll();
+      this.rovers.forEach((r) => r.pauseMovement?.());
+    } else {
+      this.tweens.resumeAll();
+      this.rovers.forEach((r) => {
+        if (r.hasCrew && r.charge > 0 && r.isPowered && !r.isWreck) r.resumeMovement?.();
+      });
+    }
+  }
+
+  // ===========================================================================
+  // SAVE / LOAD  (legacy — mantenuto per compatibilità interna)
   // ===========================================================================
 
   saveGameState() {
@@ -4485,7 +4565,20 @@ export class MoonbaseScene extends Phaser.Scene {
       }
     }
 
-    // --- 3b. Ripristina terreno (giacimenti) ---
+    // --- 3b. Ripristina esplorazione PRIMA del terreno ---
+    for (const { col, row } of (data.explored ?? [])) {
+      if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
+        this.exploredTiles[row][col] = true;
+        this.fogGraphics[row]?.[col]?.clear();
+      }
+    }
+    for (let r = 0; r < GRID_SIZE; r++) {
+      for (let c = 0; c < GRID_SIZE; c++) {
+        this._refreshFogEdgeAt(r, c);
+      }
+    }
+
+    // --- 3c. Ripristina terreno (giacimenti) ---
     if (data.terrain) {
       // Azzera tutto a NORMAL, poi applica i tile risorsa salvati
       for (let r = 0; r < GRID_SIZE; r++) {
@@ -4498,30 +4591,34 @@ export class MoonbaseScene extends Phaser.Scene {
           this.terrainGrid[r][c] = t;
         }
       }
-      this._deriveDepositGroupsFromTerrain();
+      // --- 3d. Ripristina terrainNamesGrid e squareCraters (con nomi) ---
+      this.terrainNamesGrid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(null));
+      for (const { r, c, name } of (data.terrainNames ?? [])) {
+        if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) this.terrainNamesGrid[r][c] = name;
+      }
 
-      // --- 3c. Ricostruisci Array Crateri Quadrati ---
-      this.squareCraters = [];
-      const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
-
-      for (let r = 0; r < GRID_SIZE; r++) {
-        for (let c = 0; c < GRID_SIZE; c++) {
-          if (this.terrainGrid[r][c] === 'crater' && !visited[r][c]) {
-            let size = 0;
-            // Controlla quanto è largo il quadrato partendo dal suo angolo in alto a sx
-            while (c + size < GRID_SIZE && this.terrainGrid[r][c + size] === 'crater' && !visited[r][c + size]) {
-              size++;
-            }
-            // Segna tutta l'area come visitata per non duplicare i crateri
-            for (let dr = 0; dr < size; dr++) {
-              for (let dc = 0; dc < size; dc++) {
-                if (r + dr < GRID_SIZE && c + dc < GRID_SIZE) visited[r + dr][c + dc] = true;
+      if (data.squareCraters?.length) {
+        this.squareCraters = data.squareCraters.map(cr => ({ ...cr }));
+      } else {
+        this.squareCraters = [];
+        const visited = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(false));
+        for (let r = 0; r < GRID_SIZE; r++) {
+          for (let c = 0; c < GRID_SIZE; c++) {
+            if (this.terrainGrid[r][c] === 'crater' && !visited[r][c]) {
+              let size = 0;
+              while (c + size < GRID_SIZE && this.terrainGrid[r][c + size] === 'crater' && !visited[r][c + size]) size++;
+              for (let dr = 0; dr < size; dr++) {
+                for (let dc = 0; dc < size; dc++) {
+                  if (r + dr < GRID_SIZE && c + dc < GRID_SIZE) visited[r + dr][c + dc] = true;
+                }
               }
+              this.squareCraters.push({ row: r, col: c, size, name: '' });
             }
-            this.squareCraters.push({ row: r, col: c, size });
           }
         }
       }
+
+      this._deriveDepositGroupsFromTerrain();
 
       // 1. Distruggi TUTTI i vecchi decal delle risorse
       for (let r = 0; r < GRID_SIZE; r++) {
@@ -4549,9 +4646,10 @@ export class MoonbaseScene extends Phaser.Scene {
       }
       this.terrainProps = [];
 
-      // 4. Rigenera rocce e crateri in modo che combacino con il nuovo terreno
+      // 4. Rigenera rocce, crateri e ridge
       this._spawnRocks();
       this._spawnCraters();
+      this._drawNaturalTerrainElements();
     }
 
     // --- 4. Ripristina economia ---
@@ -4568,20 +4666,7 @@ export class MoonbaseScene extends Phaser.Scene {
       this.economy.energyStored = eco.energyStored;
     }
 
-    // --- 5. Ripristina esplorazione ---
-    for (const { col, row } of data.explored) {
-      if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE) {
-        this.exploredTiles[row][col] = true;
-        this.fogGraphics[row]?.[col]?.clear();
-      }
-    }
-    for (let r = 0; r < GRID_SIZE; r++) {
-      for (let c = 0; c < GRID_SIZE; c++) {
-        this._refreshFogEdgeAt(r, c);
-      }
-    }
-
-    // --- 6. Ripristina edifici (piazzamento silente: nessun costo né popup) ---
+    // --- 5. Ripristina edifici (piazzamento silente: nessun costo né popup) ---
     this._silentLoad = true;
     for (const b of data.buildings) {
       const info = BUILDINGS_INFO[b.type];
@@ -4595,7 +4680,23 @@ export class MoonbaseScene extends Phaser.Scene {
     }
     this._silentLoad = false;
 
-    // --- 6b. Ricostruisci distretti dai centri salvati ---
+    // --- 5b. Riavvia tween costruzione per edifici in-progress ---
+    for (const b of this.buildings) {
+      if (!b.isConstructing) continue;
+      const remaining = Math.max((1 - (b.buildProgress ?? 0)) * 80000, 100);
+      b.buildTween = this.tweens.add({
+        targets: b,
+        buildProgress: 1,
+        duration: remaining,
+        onComplete: () => {
+          b.isConstructing = false;
+          this._updateNetworkConnectivity();
+          this.economy.updateProjections();
+        },
+      });
+    }
+
+    // --- 5c. Ricostruisci distretti dai centri salvati ---
     this._reconstructDistricts();
 
     // --- 7. Fix auto-tiling condotti (ricollegamento grafico) ---
@@ -4937,6 +5038,7 @@ export class MoonbaseScene extends Phaser.Scene {
   }
 
   shutdown() {
+    this.saveManager?.stopAutosave();
     this._domAbortController?.abort();
     this._emitter?.removeAllListeners();
     this._supplyDropEvent?.remove(false);

@@ -2112,6 +2112,15 @@ body.pre-game #main-area { visibility: hidden; }
 .menu-nav-btn:active {
   background: var(--ghost-bg-active);
 }
+.menu-nav-btn--primary {
+  border-color: rgba(240,240,250,0.55);
+  color: #fff;
+  background: rgba(240,240,250,0.07);
+}
+.menu-nav-btn--primary:hover {
+  background: rgba(240,240,250,0.14);
+  border-color: rgba(240,240,250,0.75);
+}
 
 .menu-footer {
   margin-top: 32px;

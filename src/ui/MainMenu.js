@@ -6,12 +6,17 @@
 //   menu.push('my-page');
 // =============================================================================
 
+import { SaveSlotMenu } from './SaveSlotMenu.js';
+
 export class MainMenu {
   /**
-   * @param {{ onStart: () => void }} opts
+   * @param {{ onStart: () => void, onContinue?: () => void, onLoadSlot?: (slotId: string) => void, saveManager?: import('../systems/SaveManager.js').SaveManager }} opts
    */
-  constructor({ onStart }) {
+  constructor({ onStart, onContinue, onLoadSlot, saveManager }) {
     this._onStart = onStart;
+    this._onContinue = onContinue ?? onStart;
+    this._onLoadSlot = onLoadSlot ?? onStart;
+    this._saveManager = saveManager ?? null;
     this._el = null;
     this._stack = [];
 
@@ -21,6 +26,11 @@ export class MainMenu {
         id: 'root',
         title: null,
         render: (c) => this._renderRoot(c),
+      },
+      {
+        id: 'load-slots',
+        title: 'CARICA PARTITA',
+        render: (c) => this._renderLoadSlots(c),
       },
       {
         id: 'options',
@@ -114,16 +124,41 @@ export class MainMenu {
   // ── Pagine built-in ─────────────────────────────────────────────────────────
 
   _renderRoot(container) {
-    container.innerHTML = `
-      <div class="menu-nav-btns">
-        <button class="menu-nav-btn" id="menu-btn-newgame">NUOVA PARTITA</button>
-        <button class="menu-nav-btn" id="menu-btn-options">OPZIONI</button>
-        <button class="menu-nav-btn" id="menu-btn-credits">CREDITI</button>
-      </div>
-    `;
+    const hasAutosave = this._saveManager?.hasAutosaveSync() ?? false;
+
+    let html = '<div class="menu-nav-btns">';
+    if (hasAutosave) {
+      html += `<button class="menu-nav-btn menu-nav-btn--primary" id="menu-btn-continue">CONTINUA</button>`;
+    }
+    html += `
+      <button class="menu-nav-btn" id="menu-btn-newgame">NUOVA PARTITA</button>
+      <button class="menu-nav-btn" id="menu-btn-load">CARICA PARTITA</button>
+      <button class="menu-nav-btn" id="menu-btn-options">OPZIONI</button>
+      <button class="menu-nav-btn" id="menu-btn-credits">CREDITI</button>
+    </div>`;
+    container.innerHTML = html;
+
+    if (hasAutosave) {
+      container.querySelector('#menu-btn-continue').addEventListener('click', () => this._onContinue());
+    }
     container.querySelector('#menu-btn-newgame').addEventListener('click', () => this._onStart());
+    container.querySelector('#menu-btn-load').addEventListener('click', () => this.push('load-slots'));
     container.querySelector('#menu-btn-options').addEventListener('click', () => this.push('options'));
     container.querySelector('#menu-btn-credits').addEventListener('click', () => this.push('credits'));
+  }
+
+  _renderLoadSlots(container) {
+    if (!this._saveManager) {
+      container.innerHTML = `<p class="menu-placeholder">— NESSUN SISTEMA DI SALVATAGGIO —</p>`;
+      return;
+    }
+    const slotMenu = new SaveSlotMenu({
+      saveManager: this._saveManager,
+      mode: 'load',
+      onClose: () => this.pop(),
+      onAction: (slotId) => this._onLoadSlot(slotId),
+    });
+    slotMenu.renderInline(container);
   }
 
   _renderOptions(container) {

@@ -8,6 +8,8 @@ import { SplashScreen } from './ui/SplashScreen.js';
 import { MainMenu } from './ui/MainMenu.js';
 import { LoadingScreen } from './ui/LoadingScreen.js';
 import { SIDEBAR_W, TOP_BAR_H } from './constants.js';
+import { LocalStorageAdapter } from './systems/StorageAdapter.js';
+import { SaveManager } from './systems/SaveManager.js';
 
 function getGameSize() {
   return {
@@ -50,28 +52,40 @@ game.events.once('ready', () => {
 
 // ── Flusso splash → menu → gioco ─────────────────────────────────────────────
 
+const adapter = new LocalStorageAdapter();
+const saveManager = new SaveManager(adapter);
+// Migra eventuale salvataggio legacy (moonbase_save → slot_1) una tantum
+adapter.importLegacySave();
+
+function startGame(loadSlot = null) {
+  const loading = new LoadingScreen();
+  loading.show(() => {
+    document.body.classList.remove('pre-game');
+  });
+
+  requestAnimationFrame(() => {
+    const { w, h } = getGameSize();
+    game.scale.resize(w, h);
+    game.scene.start('MoonbaseScene', loadSlot ? { loadSlot } : {});
+
+    requestAnimationFrame(() => {
+      const scene = game.scene.getScene('MoonbaseScene');
+      loading.trackLoader(scene?.load ?? null);
+    });
+  });
+}
+
 const splash = new SplashScreen();
 const menu = new MainMenu({
+  saveManager,
   onStart() {
-    menu.hide(() => {
-      const loading = new LoadingScreen();
-      loading.show(() => {
-        // Rivela la UI di gioco solo al termine del fade-out del loader
-        document.body.classList.remove('pre-game');
-      });
-
-      requestAnimationFrame(() => {
-        const { w, h } = getGameSize();
-        game.scale.resize(w, h);
-        game.scene.start('MoonbaseScene');
-
-        // Nel frame successivo la scena è in coda: agganciamo il loader
-        requestAnimationFrame(() => {
-          const scene = game.scene.getScene('MoonbaseScene');
-          loading.trackLoader(scene?.load ?? null);
-        });
-      });
-    });
+    menu.hide(() => startGame(null));
+  },
+  onContinue() {
+    menu.hide(() => startGame('autosave'));
+  },
+  onLoadSlot(slotId) {
+    menu.hide(() => startGame(slotId));
   },
 });
 

@@ -376,7 +376,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
   }
 
   resumeMovement() {
-    if (this._moveTween && this._moveTween.isPaused() && this.hasCrew && !this.isWreck) this._moveTween.resume();
+    if (this._moveTween && this._moveTween.isPaused() && this.isPowered && this.hasCrew && !this.isWreck) this._moveTween.resume();
   }
 
   cancelMovement() {
@@ -424,7 +424,13 @@ export class Rover extends Phaser.GameObjects.Sprite {
   wakeUp() {
     this.isWreck = false;
     this.isPowered = true;
-    this.hasCrew = true; // Torna disponibile
+    this.hasCrew = true;
+
+    // Resetta stato di movimento residuo dal breakdown
+    this.moving = false;
+    this._path = [];
+    if (this._moveTween) { this._moveTween.stop(); this._moveTween = null; }
+    this._pendingMove = null;
 
     // Rimuove la tinta ruggine
     this.clearTint();

@@ -409,7 +409,7 @@ export class EconomyManager {
       // (ricarica gestita da timer indipendente nel Rover)
       if (!r.isPowered || this._solarFlareTicksRemaining > 0) {
         r.hasCrew = false;
-        if (r._moveTween && r._moveTween.isPlaying()) r.pauseMovement();
+        if (r.moving) r.cancelMovement();
         continue;
       }
       if (crewPool >= 1) {
@@ -421,7 +421,7 @@ export class EconomyManager {
       } else {
         r.hasCrew = false;
         r.setAlpha(0.4);
-        if (r._moveTween && r._moveTween.isPlaying()) r.pauseMovement();
+        if (r.moving) r.cancelMovement();
       }
     }
 

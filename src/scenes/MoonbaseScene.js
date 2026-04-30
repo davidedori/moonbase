@@ -2884,11 +2884,8 @@ export class MoonbaseScene extends Phaser.Scene {
     } else {
       // Ferma i move tween di rover che non possono muoversi prima di riprendere tutto
       this.rovers.forEach(r => {
-        if (r._moveTween && (!r.hasCrew || !r.isPowered || r.isWreck || r.charge <= 0)) {
-          r._moveTween.stop();
-          r._moveTween = null;
-          r.moving = false;
-          r._path = [];
+        if (r.moving && (!r.hasCrew || !r.isPowered || r.isWreck || r.charge <= 0)) {
+          r.cancelMovement();
         }
       });
 
@@ -3877,6 +3874,7 @@ export class MoonbaseScene extends Phaser.Scene {
           } else if (!target.isPowered && target.hasCrew) {
             target.hasCrew = false;
             this.economy.crewEmployed--;
+            if (target.moving) target.cancelMovement();
           }
         }
 
@@ -4282,8 +4280,9 @@ export class MoonbaseScene extends Phaser.Scene {
   }
 
   _setupMousePan() {
-    this._drag = { active: false, startX: 0, startY: 0, camStartX: 0, camStartY: 0 };
+    this._drag = { active: false, startX: 0, startY: 0, camStartX: 0, camStartY: 0, hasMoved: false };
     this.input.on('pointerdown', (p) => {
+      this._drag.hasMoved = false;
       if (p.rightButtonDown()) return;
       this._drag.active = true;
       this._drag.startX = p.x;
@@ -4297,19 +4296,22 @@ export class MoonbaseScene extends Phaser.Scene {
       this.cameras.main.scrollX = this._drag.camStartX - (p.x - this._drag.startX) / zoom;
       this.cameras.main.scrollY = this._drag.camStartY - (p.y - this._drag.startY) / zoom;
       this._clampCamera();
+      if (Math.abs(p.x - this._drag.startX) > 5 || Math.abs(p.y - this._drag.startY) > 5) {
+        this._drag.hasMoved = true;
+      }
     });
     this.input.on('pointerup', () => { this._drag.active = false; });
   }
 
   _setupGlobalGridPicking() {
-    this.input.on('pointerdown', (pointer, currentlyOver) => {
+    this.input.on('pointerup', (pointer, currentlyOver) => {
       if (this.isGameOver) return;
       const pickedTile = this._pickGridTileFromPointer(pointer, currentlyOver);
       if (!pickedTile) return;
       const { col, row } = pickedTile;
 
       // ── Tasto Destro ──────────────────────────────────────────────────────
-      if (pointer.rightButtonDown()) {
+      if (pointer.rightButtonReleased()) {
         // Se siamo in modalità costruzione → annullala
         if (this.selectedBuilding) {
           this.selectedBuilding = null;
@@ -4368,9 +4370,7 @@ export class MoonbaseScene extends Phaser.Scene {
   }
 
   _pickGridTileFromPointer(pointer, currentlyOver = []) {
-    if (this._drag.active &&
-      (Math.abs(pointer.x - this._drag.startX) > 5 ||
-        Math.abs(pointer.y - this._drag.startY) > 5)) return null;
+    if (this._drag.hasMoved) return null;
 
     // Right-click ignora currentlyOver (il movimento rover deve sempre passare)
     // Left-click: se c'è uno sprite interattivo, lasciamo gestire a lui

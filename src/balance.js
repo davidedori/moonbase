@@ -28,7 +28,7 @@ export const DEADLOCK_MAX_TIME = 180;
 export const CREW_PENALTY_INTERVAL = 5;    // ogni N secondi emergenza → -1 crew
 
 // === EVENTI CASUALI (HAZARD) ===
-export const HAZARD_PROBABILITY = 0.02;     // probabilità per tick
+export const HAZARD_PROBABILITY = 0.03;     // probabilità per tick
 export const SOLAR_FLARE_ROLL_MAX = 0.33;     // roll < questo → solar flare
 export const MICROMETEORITE_ROLL_MAX = 0.66;     // roll < questo (e > flare) → meteore
 // (roll >= MICROMETEORITE_ROLL_MAX → extended eclipse)
@@ -56,7 +56,7 @@ export const INITIAL_EXPLORED_SIZE = 5;    // zona 5×5 esplorata all'avvio
 
 // === GIACIMENTI — CAPACITÀ ===
 export const DEPOSIT_MIN_CAPACITY = 50;
-export const DEPOSIT_MAX_CAPACITY = 300;
+export const DEPOSIT_MAX_CAPACITY = 500;
 
 // === GIACIMENTI — FALLOFF DISTANZA ===
 export const DEPOSIT_RICH_DIST = 1;   // distanza ≤ 1: resa piena
@@ -96,55 +96,55 @@ export const COMMAND_CREW_GEN = 5;    // crew fissa del command center
 // =============================================================================
 
 // Hub distretti
-export const HABITAT_HUB_COST = 80; export const HABITAT_HUB_COST_COMP = 40;
-export const LOGISTICS_HUB_COST = 100; export const LOGISTICS_HUB_COST_COMP = 60;
-export const MINING_HUB_COST = 50; export const MINING_HUB_COST_COMP = 0;
-export const CRYO_HUB_COST = 60; export const CRYO_HUB_COST_COMP = 0;
-export const POWER_CENTER_COST = 50; export const POWER_CENTER_COST_COMP = 25;
+export const HABITAT_HUB_COST = 110; export const HABITAT_HUB_COST_COMP = 30;
+export const LOGISTICS_HUB_COST = 135; export const LOGISTICS_HUB_COST_COMP = 45;
+export const MINING_HUB_COST = 70; export const MINING_HUB_COST_COMP = 0;
+export const CRYO_HUB_COST = 85; export const CRYO_HUB_COST_COMP = 0;
+export const POWER_CENTER_COST = 70; export const POWER_CENTER_COST_COMP = 30;
 
 // Moduli con hard cap (maxPerDistrict: 1)
-export const ROVER_WORKSHOP_COST = 0; export const ROVER_WORKSHOP_COST_COMP = 100;
-export const ISRU_PLANT_COST = 0; export const ISRU_PLANT_COST_COMP = 40;
-export const COMPONENT_FACTORY_COST = 80; export const COMPONENT_FACTORY_COST_COMP = 0;
+export const ROVER_WORKSHOP_COST = 0; export const ROVER_WORKSHOP_COST_COMP = 70;
+export const ISRU_PLANT_COST = 0; export const ISRU_PLANT_COST_COMP = 30;
+export const COMPONENT_FACTORY_COST = 85; export const COMPONENT_FACTORY_COST_COMP = 0;
 
 // Storage
-export const H2O_TANK_COST = 50; export const H2O_TANK_COST_COMP = 20;
+export const H2O_TANK_COST = 70; export const H2O_TANK_COST_COMP = 20;
 export const BATTERY_BANK_COST = 30; export const BATTERY_BANK_COST_COMP = 30;
 export const REGOLITH_DEPOT_COST = 60; export const REGOLITH_DEPOT_COST_COMP = 0;
-export const ICE_SILO_COST = 40; export const ICE_SILO_COST_COMP = 10;
+export const ICE_SILO_COST = 60; export const ICE_SILO_COST_COMP = 20;
 export const COMPONENT_DEPOT_COST = 30; export const COMPONENT_DEPOT_COST_COMP = 30;
 
 // Produzione energia
-export const SOLAR_ARRAY_COST = 25; export const SOLAR_ARRAY_COST_COMP = 0;
-export const RTG_COST = 0; export const RTG_COST_COMP = 80;
+export const SOLAR_ARRAY_COST = 30; export const SOLAR_ARRAY_COST_COMP = 0;
+export const RTG_COST = 0; export const RTG_COST_COMP = 50;
 
 // Habitat / supporto vita
-export const HAB_MODULE_COST = 0; export const HAB_MODULE_COST_COMP = 50;
-export const BOTANY_GREENHOUSE_COST = 50; export const BOTANY_GREENHOUSE_COST_COMP = 40;
-export const MEDBAY_COST = 20; export const MEDBAY_COST_COMP = 60;
+export const HAB_MODULE_COST = 0; export const HAB_MODULE_COST_COMP = 70;
+export const BOTANY_GREENHOUSE_COST = 60; export const BOTANY_GREENHOUSE_COST_COMP = 45;
+export const MEDBAY_COST = 30; export const MEDBAY_COST_COMP = 70;
 
 // Estrazione
-export const REGOLITH_EXTRACTOR_COST = 50; export const REGOLITH_EXTRACTOR_COST_COMP = 0;
-export const ICE_EXTRACTOR_COST = 75; export const ICE_EXTRACTOR_COST_COMP = 0;
-export const RECYCLING_FACILITY_COST = 80; export const RECYCLING_FACILITY_COST_COMP = 40;
-export const DEEP_DRILL_COST = 200; export const DEEP_DRILL_COST_COMP = 100;
+export const REGOLITH_EXTRACTOR_COST = 30; export const REGOLITH_EXTRACTOR_COST_COMP = 0;
+export const ICE_EXTRACTOR_COST = 30; export const ICE_EXTRACTOR_COST_COMP = 0;
+export const RECYCLING_FACILITY_COST = 85; export const RECYCLING_FACILITY_COST_COMP = 30;
+export const DEEP_DRILL_COST = 85; export const DEEP_DRILL_COST_COMP = 70;
 
 // Utility
-export const CONDUIT_COST = 5; export const CONDUIT_COST_COMP = 0;
+export const CONDUIT_COST = 15; export const CONDUIT_COST_COMP = 0;
 
 // =============================================================================
 // CONSUMO ENERGETICO EDIFICI  (per tick)
 // =============================================================================
-export const ROVER_WORKSHOP_ENERGY = 25;
-export const ISRU_PLANT_ENERGY = 20;
+export const ROVER_WORKSHOP_ENERGY = 15;
+export const ISRU_PLANT_ENERGY = 15;
 export const COMPONENT_FACTORY_ENERGY = 15;
-export const HAB_MODULE_ENERGY = 30;
+export const HAB_MODULE_ENERGY = 15;
 export const BOTANY_GREENHOUSE_ENERGY = 15;
-export const MEDBAY_ENERGY = 10;
+export const MEDBAY_ENERGY = 15;
 export const REGOLITH_EXTRACTOR_ENERGY = 10;
-export const ICE_EXTRACTOR_ENERGY = 15;
-export const RECYCLING_FACILITY_ENERGY = 10;
-export const DEEP_DRILL_ENERGY = 30;
+export const ICE_EXTRACTOR_ENERGY = 10;
+export const RECYCLING_FACILITY_ENERGY = 15;
+export const DEEP_DRILL_ENERGY = 15;
 
 // =============================================================================
 // GENERAZIONE ENERGIA  (per tick)
@@ -184,13 +184,13 @@ export const H2O_TANK_O2_CAP_BONUS = 300;
 export const BATTERY_BANK_ENERGY_CAP_BONUS = 100;
 
 // Cap iniziali per le risorse primarie (tunable)
-export const INITIAL_MAX_REGOLITH   = 300;
-export const INITIAL_MAX_ICE        = 100;
+export const INITIAL_MAX_REGOLITH = 300;
+export const INITIAL_MAX_ICE = 100;
 export const INITIAL_MAX_COMPONENTS = 100;
 
 // Bonus per edificio storage (per unità costruita)
-export const REGOLITH_DEPOT_REG_CAP_BONUS   = 200;
-export const ICE_SILO_ICE_CAP_BONUS         = 100;
+export const REGOLITH_DEPOT_REG_CAP_BONUS = 200;
+export const ICE_SILO_ICE_CAP_BONUS = 100;
 export const COMPONENT_DEPOT_COMP_CAP_BONUS = 100;
 
 // =============================================================================

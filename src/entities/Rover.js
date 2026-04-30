@@ -244,6 +244,7 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
   // Aggiungi precalculatedPath come ultimo parametro
   moveTo(destCol, destRow, occupiedGrid, terrainGrid, revealFogFn, setTileShadowFn, precalculatedPath = null) {
+    if (this.moving && !this._moveTween && this._path.length === 0) this.moving = false;
     if (this.moving) return false;
     if (!this.isPowered || this.isWreck || this.charge <= 0 || !this.hasCrew) return false;
     if (this.col === destCol && this.row === destRow) return false;
@@ -376,6 +377,21 @@ export class Rover extends Phaser.GameObjects.Sprite {
 
   resumeMovement() {
     if (this._moveTween && this._moveTween.isPaused() && this.hasCrew && !this.isWreck) this._moveTween.resume();
+  }
+
+  cancelMovement() {
+    if (this._moveTween) {
+      this._moveTween.stop();
+      this._moveTween = null;
+    }
+    const { x, y } = cartesianToIsometric(this.col, this.row);
+    this.setPosition(x, y + TILE_H / 2 + this.visualYOffset);
+    this._updateDepth();
+    this.moving = false;
+    this._path = [];
+    this._pendingMove = null;
+    this.fromCol = null;
+    this.fromRow = null;
   }
 
   // ---------------------------------------------------------------------------

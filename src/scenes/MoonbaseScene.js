@@ -19,6 +19,7 @@ import { MissionControl } from '../ui/MissionControl.js';
 import { LocalStorageAdapter } from '../systems/StorageAdapter.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { SaveSlotMenu } from '../ui/SaveSlotMenu.js';
+import { GameMenu } from '../ui/GameMenu.js';
 import {
   GRID_SIZE,
   TILE_W,
@@ -4415,6 +4416,24 @@ export class MoonbaseScene extends Phaser.Scene {
   // ===========================================================================
   // SAVE / LOAD — UI menu slot
   // ===========================================================================
+
+  /** Apre il menu principale in-game (ESC / bottone top bar) */
+  _openGameMenu() {
+    if (this.isGameOver) return;
+    this._setPauseForMenu(true);
+    const gm = new GameMenu({
+      saveManager: this.saveManager,
+      authManager: this._externalAuthManager,
+      onClose: () => this._setPauseForMenu(false),
+      onSaveAction: async (slotId, saveName) => {
+        await this.saveManager.saveToSlot(slotId, this, saveName);
+      },
+      onLoadAction: (slotId) => {
+        this.saveManager.loadFromSlot(slotId, this);
+      },
+    });
+    gm.show();
+  }
 
   /** Apre il menu di salvataggio (hotkey O o menu in-game) */
   _openSaveMenu() {

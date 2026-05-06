@@ -4419,12 +4419,13 @@ export class MoonbaseScene extends Phaser.Scene {
 
   /** Apre il menu principale in-game (ESC / bottone top bar) */
   _openGameMenu() {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this._menuOpen) return;
+    this._menuOpen = true;
     this._setPauseForMenu(true);
     const gm = new GameMenu({
       saveManager: this.saveManager,
       authManager: this._externalAuthManager,
-      onClose: () => this._setPauseForMenu(false),
+      onClose: () => { this._menuOpen = false; this._setPauseForMenu(false); },
       onSaveAction: async (slotId, saveName) => {
         await this.saveManager.saveToSlot(slotId, this, saveName);
       },
@@ -4437,13 +4438,15 @@ export class MoonbaseScene extends Phaser.Scene {
 
   /** Apre il menu di salvataggio (hotkey O o menu in-game) */
   _openSaveMenu() {
-    if (this.isGameOver) return;
+    if (this.isGameOver || this._menuOpen) return;
+    this._menuOpen = true;
     this._setPauseForMenu(true);
     const menu = new SaveSlotMenu({
       saveManager: this.saveManager,
       mode: 'save',
       authManager: this._externalAuthManager,
       onClose: () => {
+        this._menuOpen = false;
         menu.hide();
         this._setPauseForMenu(false);
       },
@@ -4457,16 +4460,20 @@ export class MoonbaseScene extends Phaser.Scene {
 
   /** Apre il menu di caricamento (hotkey P o menu in-game) */
   _openLoadMenu() {
+    if (this._menuOpen) return;
+    this._menuOpen = true;
     this._setPauseForMenu(true);
     const menu = new SaveSlotMenu({
       saveManager: this.saveManager,
       mode: 'load',
       authManager: this._externalAuthManager,
       onClose: () => {
+        this._menuOpen = false;
         menu.hide();
         this._setPauseForMenu(false);
       },
       onAction: async (slotId) => {
+        this._menuOpen = false;
         menu.hide(() => {
           this.saveManager.loadFromSlot(slotId, this).then(() => {
             this._setPauseForMenu(false);

@@ -186,7 +186,7 @@ export class SaveSlotMenu {
 
   _doSave(slotId) {
     if (this._authManager && !this._authManager.isLoggedIn) {
-      this._showAuthGate();
+      this._showAuthGate(slotId);
       return;
     }
     const defaultName = `Partita — ${new Date().toLocaleDateString('it-IT')}`;
@@ -194,10 +194,13 @@ export class SaveSlotMenu {
     this._onAction(slotId, saveName.trim() || defaultName);
   }
 
-  _showAuthGate() {
+  _showAuthGate(slotId) {
     const modal = new AuthModal({
       authManager: this._authManager,
-      onSuccess: () => this.refresh(),
+      onSuccess: () => {
+        // Dopo il login aggiorna la lista slot e procede subito col salvataggio
+        this.refresh().then(() => this._doSave(slotId));
+      },
       onClose: () => {},
     });
     modal.show();

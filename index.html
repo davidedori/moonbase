@@ -126,6 +126,22 @@
       <button id="btn-dev-meteor" class="ghost-btn" style="display:none;">
         <i data-lucide="zap"></i> METEOR
       </button>
+      <div class="top-bar-account" id="top-bar-account">
+        <button id="btn-account" class="ghost-btn top-bar-account-btn">
+          <i data-lucide="user"></i>
+          <span id="btn-account-label">OSPITE</span>
+        </button>
+        <div class="top-bar-account-dropdown" id="account-dropdown" style="display:none;">
+          <div class="account-dropdown-email" id="account-dropdown-email"></div>
+          <div class="account-dropdown-divider"></div>
+          <button class="account-dropdown-item" id="account-dropdown-login" style="display:none;">
+            <i data-lucide="log-in"></i> ACCEDI / REGISTRATI
+          </button>
+          <button class="account-dropdown-item account-dropdown-item--danger" id="account-dropdown-logout" style="display:none;">
+            <i data-lucide="log-out"></i> LOGOUT
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -13,7 +13,6 @@ import { LocalStorageAdapter } from './systems/StorageAdapter.js';
 import { SupabaseAdapter } from './systems/SupabaseAdapter.js';
 import { SaveManager } from './systems/SaveManager.js';
 import { AuthManager } from './systems/AuthManager.js';
-import { AuthModal } from './ui/AuthModal.js';
 
 // ── Supabase ──────────────────────────────────────────────────────────────────
 
@@ -160,71 +159,19 @@ authManager.init().then(() => {
     // Pre-fetch hasAutosave per mostrare "CONTINUA" correttamente
     cloudAdapter.hasAutosave().then(() => {});
   }
-  initAccountButton();
+  initMenuButton();
   splash.show(() => menu.show());
 });
 
-// ── Account button (top bar) ──────────────────────────────────────────────────
+// ── Menu button (top bar) ─────────────────────────────────────────────────────
 
-function initAccountButton() {
-  const btn = document.getElementById('btn-account');
-  const label = document.getElementById('btn-account-label');
-  const dropdown = document.getElementById('account-dropdown');
-  const emailEl = document.getElementById('account-dropdown-email');
-  const loginItem = document.getElementById('account-dropdown-login');
-  const logoutItem = document.getElementById('account-dropdown-logout');
+function initMenuButton() {
+  const btn = document.getElementById('btn-game-menu');
   if (!btn) return;
-
-  function updateUI() {
-    const user = authManager.user;
-    if (user) {
-      label.textContent = user.email;
-      btn.classList.add('account-logged-in');
-      emailEl.textContent = user.email;
-      loginItem.style.display = 'none';
-      logoutItem.style.display = '';
-    } else {
-      label.textContent = 'OSPITE';
-      btn.classList.remove('account-logged-in');
-      emailEl.textContent = '';
-      loginItem.style.display = '';
-      logoutItem.style.display = 'none';
-    }
-    // Reinitialize Lucide icons for the dropdown
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  function closeDropdown() {
-    dropdown.style.display = 'none';
-  }
-
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isOpen = dropdown.style.display !== 'none';
-    dropdown.style.display = isOpen ? 'none' : 'block';
+  btn.addEventListener('click', () => {
+    const scene = game.scene.getScene('MoonbaseScene');
+    scene?._openGameMenu();
   });
-
-  loginItem.addEventListener('click', () => {
-    closeDropdown();
-    const modal = new AuthModal({
-      authManager,
-      onSuccess: () => updateUI(),
-      onClose: () => {},
-    });
-    modal.show();
-  });
-
-  logoutItem.addEventListener('click', () => {
-    closeDropdown();
-    authManager.logout();
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!btn.closest('#top-bar-account').contains(e.target)) closeDropdown();
-  });
-
-  authManager.onAuthChange(() => updateUI());
-  updateUI();
 }
 
 // ── Resize ───────────────────────────────────────────────────────────────────

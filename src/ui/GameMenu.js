@@ -7,6 +7,7 @@
 
 import { SaveSlotMenu } from './SaveSlotMenu.js';
 import { AuthModal } from './AuthModal.js';
+import { LoadingScreen } from './LoadingScreen.js';
 
 export class GameMenu {
   /**
@@ -158,7 +159,10 @@ export class GameMenu {
         onAction: (slotId) => {
           slotMenu.hide(() => {
             this._onClose();
-            this._onLoadAction(slotId);
+            const loading = new LoadingScreen(1200);
+            loading.show(() => {});
+            Promise.resolve(this._onLoadAction(slotId))
+              .finally(() => loading.trackLoader(null));
           });
         },
       });

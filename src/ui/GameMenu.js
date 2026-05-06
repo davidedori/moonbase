@@ -156,7 +156,10 @@ export class GameMenu {
         mode: 'load',
         onClose: () => { slotMenu.hide(() => this._onClose()); },
         onAction: (slotId) => {
-          slotMenu.hide(() => this._onLoadAction(slotId));
+          slotMenu.hide(() => {
+            this._onClose();
+            this._onLoadAction(slotId);
+          });
         },
       });
       slotMenu.show();

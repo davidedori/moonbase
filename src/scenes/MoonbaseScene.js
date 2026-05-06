@@ -4484,10 +4484,14 @@ export class MoonbaseScene extends Phaser.Scene {
   _setPauseForMenu(paused) {
     this.economy.isPaused = paused;
     this.time.paused = paused;
+    // Disabilita/abilita input Phaser per evitare passthrough su tastiera e mouse
+    this.input.enabled = !paused;
     if (paused) {
+      this.input.keyboard?.disableGlobalCapture();
       this.tweens.pauseAll();
       this.rovers.forEach((r) => r.pauseMovement?.());
     } else {
+      this.input.keyboard?.enableGlobalCapture();
       this.tweens.resumeAll();
       this.rovers.forEach((r) => {
         if (r.hasCrew && r.charge > 0 && r.isPowered && !r.isWreck) r.resumeMovement?.();

@@ -171,7 +171,7 @@ export class AuthModal {
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,0.82);
-      z-index: 300;
+      z-index: 6200;
       display: flex;
       align-items: center;
       justify-content: center;

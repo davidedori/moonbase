@@ -183,7 +183,7 @@ export class GameMenu {
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,0.72);
-      z-index: 200;
+      z-index: 6000;
       display: flex;
       align-items: center;
       justify-content: center;

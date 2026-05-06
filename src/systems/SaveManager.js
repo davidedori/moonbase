@@ -8,8 +8,8 @@
 import { BUILDINGS_INFO, TILE_W, TILE_H } from '../constants.js';
 
 export class SaveManager {
-  static SLOT_IDS = ['autosave', 'slot_1', 'slot_2', 'slot_3', 'slot_4', 'slot_5'];
   static SAVE_VERSION = 1;
+  static generateSaveId() { return `save_${Date.now()}`; }
   static AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000; // 3 minuti
 
   constructor(adapter, authManager = null) {

@@ -555,8 +555,8 @@ export class MoonbaseScene extends Phaser.Scene {
       this.ui.hideTooltip();
     }
 
-    // 2. Se in pausa, interrompi il resto della logica di gioco
-    if (this.isGamePaused) return;
+    // 2. Se in pausa o con un menu aperto, interrompi il resto della logica di gioco
+    if (this.isGamePaused || this._menuOpen) return;
 
     this._handleCameraKeyboard();
     this._updateHighlighter();
@@ -4502,6 +4502,11 @@ export class MoonbaseScene extends Phaser.Scene {
       this.rovers.forEach((r) => r.pauseMovement?.());
     } else {
       this.input.keyboard?.enableGlobalCapture();
+      // Resetta lo stato dei tasti di movimento: durante il menu Phaser non riceve
+      // i keyup, quindi senza questo reset i tasti restano "down" per sempre.
+      [this.wasd?.up, this.wasd?.down, this.wasd?.left, this.wasd?.right,
+       this.cursors?.up, this.cursors?.down, this.cursors?.left, this.cursors?.right,
+      ].forEach((k) => k?.reset?.());
       this.tweens.resumeAll();
       this.rovers.forEach((r) => {
         if (r.hasCrew && r.charge > 0 && r.isPowered && !r.isWreck) r.resumeMovement?.();

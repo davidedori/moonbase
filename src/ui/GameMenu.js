@@ -140,9 +140,9 @@ export class GameMenu {
         authManager: this._auth,
         mode: 'save',
         onClose: () => { slotMenu.hide(() => this._onClose()); },
-        onAction: (slotId, saveName) => {
-          this._onSaveAction(slotId, saveName);
-          slotMenu.hide(() => this._onClose());
+        onAction: async (slotId, saveName) => {
+          await this._onSaveAction(slotId, saveName);
+          slotMenu.refresh();
         },
       });
       slotMenu.show();

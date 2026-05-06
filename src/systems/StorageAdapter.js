@@ -88,16 +88,18 @@ export class LocalStorageAdapter {
   }
 
   /**
-   * Migra il vecchio salvataggio `moonbase_save` in slot_1 se non esiste già.
+   * Migra il vecchio salvataggio `moonbase_save` nella lista dinamica se non è già stato importato.
    * Da chiamare una volta all'avvio.
    */
   importLegacySave() {
     const legacy = localStorage.getItem('moonbase_save');
     if (!legacy) return;
-    if (localStorage.getItem(slotKey('slot_1'))) return; // slot_1 già occupato
+    const alreadyImported = this._readIndex().some((m) => m.slotId?.startsWith('save_legacy_'));
+    if (alreadyImported) return;
 
     try {
       const old = JSON.parse(legacy);
+      const newId = `save_legacy_${Date.now()}`;
       const saveData = {
         version: 1,
         savedAt: new Date().toISOString(),
@@ -145,8 +147,8 @@ export class LocalStorageAdapter {
         capacityGrid: old.capacity ?? [],
       };
 
-      this.writeSlot('slot_1', saveData);
-      console.info('[StorageAdapter] Save legacy importato in slot_1');
+      this.writeSlot(newId, saveData);
+      console.info('[StorageAdapter] Save legacy importato come', newId);
     } catch (e) {
       console.warn('[StorageAdapter] Import legacy fallito:', e);
     }

@@ -7,6 +7,7 @@
 // =============================================================================
 
 import { SaveManager } from '../systems/SaveManager.js';
+import { AuthModal } from './AuthModal.js';
 
 const SLOT_LABELS = {
   autosave: 'Autosave',
@@ -30,13 +31,14 @@ function formatDate(isoString) {
 
 export class SaveSlotMenu {
   /**
-   * @param {{ saveManager: SaveManager, mode: 'save'|'load', onClose: () => void, onAction: (slotId: string, saveName?: string) => void }} opts
+   * @param {{ saveManager: SaveManager, mode: 'save'|'load', onClose: () => void, onAction: (slotId: string, saveName?: string) => void, authManager?: import('../systems/AuthManager.js').AuthManager }} opts
    */
-  constructor({ saveManager, mode, onClose, onAction }) {
+  constructor({ saveManager, mode, onClose, onAction, authManager = null }) {
     this._saveManager = saveManager;
     this._mode = mode;
     this._onClose = onClose;
     this._onAction = onAction;
+    this._authManager = authManager;
     this._el = null;
     this._contentEl = null;
     this._slots = [];
@@ -183,9 +185,22 @@ export class SaveSlotMenu {
   }
 
   _doSave(slotId) {
+    if (this._authManager && !this._authManager.isLoggedIn) {
+      this._showAuthGate();
+      return;
+    }
     const defaultName = `Partita — ${new Date().toLocaleDateString('it-IT')}`;
     const saveName = prompt('Nome salvataggio:', defaultName) ?? defaultName;
     this._onAction(slotId, saveName.trim() || defaultName);
+  }
+
+  _showAuthGate() {
+    const modal = new AuthModal({
+      authManager: this._authManager,
+      onSuccess: () => this.refresh(),
+      onClose: () => {},
+    });
+    modal.show();
   }
 
   async _handleDelete(slotId, card) {

@@ -150,6 +150,8 @@ export class MoonbaseScene extends Phaser.Scene {
 
   init(data) {
     this._loadSlotOnCreate = data?.loadSlot ?? null;
+    this._externalSaveManager = data?.saveManager ?? null;
+    this._externalAuthManager = data?.authManager ?? null;
 
     this.selectedBuilding = null;
     this.selectedDistrict = null;
@@ -244,8 +246,14 @@ export class MoonbaseScene extends Phaser.Scene {
     this.missionControl = new MissionControl(this._emitter, this.ui);
 
     // --- SaveManager ---
-    this._saveAdapter = new LocalStorageAdapter();
-    this.saveManager = new SaveManager(this._saveAdapter);
+    // Usa il SaveManager globale (con SupabaseAdapter) se passato da main.js,
+    // altrimenti crea uno locale di fallback (es. in test isolati).
+    if (this._externalSaveManager) {
+      this.saveManager = this._externalSaveManager;
+    } else {
+      this._saveAdapter = new LocalStorageAdapter();
+      this.saveManager = new SaveManager(this._saveAdapter);
+    }
 
     // Ascolta game-over dalla scena (per fermare i rover)
     this._emitter.on('game-over', () => {
@@ -4415,6 +4423,7 @@ export class MoonbaseScene extends Phaser.Scene {
     const menu = new SaveSlotMenu({
       saveManager: this.saveManager,
       mode: 'save',
+      authManager: this._externalAuthManager,
       onClose: () => {
         menu.hide();
         this._setPauseForMenu(false);
@@ -4433,6 +4442,7 @@ export class MoonbaseScene extends Phaser.Scene {
     const menu = new SaveSlotMenu({
       saveManager: this.saveManager,
       mode: 'load',
+      authManager: this._externalAuthManager,
       onClose: () => {
         menu.hide();
         this._setPauseForMenu(false);

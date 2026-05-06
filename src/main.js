@@ -3,13 +3,26 @@
 // Flusso: SplashScreen → MainMenu → MoonbaseScene
 // =============================================================================
 
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { MoonbaseScene } from './scenes/MoonbaseScene.js';
 import { SplashScreen } from './ui/SplashScreen.js';
 import { MainMenu } from './ui/MainMenu.js';
 import { LoadingScreen } from './ui/LoadingScreen.js';
 import { SIDEBAR_W, TOP_BAR_H } from './constants.js';
 import { LocalStorageAdapter } from './systems/StorageAdapter.js';
+import { SupabaseAdapter } from './systems/SupabaseAdapter.js';
 import { SaveManager } from './systems/SaveManager.js';
+import { AuthManager } from './systems/AuthManager.js';
+
+// ── Supabase ──────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = 'https://bysfmupjhzewjfaimrtk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5c2ZtdXBqaHpld2pmYWltcnRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzY2ODYsImV4cCI6MjA5MzY1MjY4Nn0.PEayjPMSH3EFYePl3GgFSEKa3DMOCeSTfbvmC0fAXXI';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const authManager = new AuthManager(supabase);
+
+// ── Game ──────────────────────────────────────────────────────────────────────
 
 function getGameSize() {
   return {
@@ -18,7 +31,6 @@ function getGameSize() {
   };
 }
 
-// Nasconde top-bar e main-area finché il gioco non parte
 document.body.classList.add('pre-game');
 
 const { w: initW, h: initH } = getGameSize();
@@ -39,23 +51,68 @@ const config = {
       capture: true,
     },
   },
-  scene: [], // MoonbaseScene viene aggiunta e avviata solo dopo il menu
+  scene: [],
 };
 
 const game = new Phaser.Game(config);
 window.__phaserGame = game;
 
-// Registra la scena senza avviarla
 game.events.once('ready', () => {
   game.scene.add('MoonbaseScene', MoonbaseScene, false);
 });
 
-// ── Flusso splash → menu → gioco ─────────────────────────────────────────────
+// ── Storage ───────────────────────────────────────────────────────────────────
 
-const adapter = new LocalStorageAdapter();
-const saveManager = new SaveManager(adapter);
+const localAdapter = new LocalStorageAdapter();
 // Migra eventuale salvataggio legacy (moonbase_save → slot_1) una tantum
-adapter.importLegacySave();
+localAdapter.importLegacySave();
+
+// SaveManager parte senza adapter (guest = nessun salvataggio)
+const saveManager = new SaveManager(null, authManager);
+
+// ── Auth → adapter swap ───────────────────────────────────────────────────────
+
+authManager.onAuthChange((user) => {
+  if (user) {
+    const cloudAdapter = new SupabaseAdapter(supabase);
+    saveManager._adapter = cloudAdapter;
+    // Esponi riferimento per hasAutosaveSync nel MainMenu
+    authManager._supabaseAdapter = cloudAdapter;
+    _migrateLocalSavesToCloud(localAdapter, cloudAdapter, user.id);
+  } else {
+    saveManager._adapter = null;
+    authManager._supabaseAdapter = null;
+  }
+  if (menu._el) menu._rerenderRoot();
+});
+
+// ── Migrazione locale → cloud ─────────────────────────────────────────────────
+
+async function _migrateLocalSavesToCloud(local, cloud, userId) {
+  const migrationKey = `moonbase_v1::cloud_migrated_${userId}`;
+  if (localStorage.getItem(migrationKey)) return;
+
+  try {
+    const [localSlots, cloudSlots] = await Promise.all([local.listSlots(), cloud.listSlots()]);
+    if (localSlots.length === 0) {
+      localStorage.setItem(migrationKey, '1');
+      return;
+    }
+
+    const cloudIds = new Set(cloudSlots.map((s) => s.slotId));
+    for (const meta of localSlots) {
+      if (cloudIds.has(meta.slotId)) continue;
+      const data = await local.readSlot(meta.slotId);
+      if (data) await cloud.writeSlot(meta.slotId, data);
+    }
+    localStorage.setItem(migrationKey, '1');
+    console.info('[Moonbase] Save locali migrati nel cloud.');
+  } catch (e) {
+    console.warn('[Moonbase] Migrazione cloud fallita:', e);
+  }
+}
+
+// ── Avvio gioco ───────────────────────────────────────────────────────────────
 
 function startGame(loadSlot = null) {
   const loading = new LoadingScreen();
@@ -66,7 +123,7 @@ function startGame(loadSlot = null) {
   requestAnimationFrame(() => {
     const { w, h } = getGameSize();
     game.scale.resize(w, h);
-    game.scene.start('MoonbaseScene', loadSlot ? { loadSlot } : {});
+    game.scene.start('MoonbaseScene', { loadSlot: loadSlot ?? undefined, saveManager, authManager });
 
     requestAnimationFrame(() => {
       const scene = game.scene.getScene('MoonbaseScene');
@@ -75,9 +132,12 @@ function startGame(loadSlot = null) {
   });
 }
 
+// ── Menu ──────────────────────────────────────────────────────────────────────
+
 const splash = new SplashScreen();
 const menu = new MainMenu({
   saveManager,
+  authManager,
   onStart() {
     menu.hide(() => startGame(null));
   },
@@ -89,7 +149,18 @@ const menu = new MainMenu({
   },
 });
 
-splash.show(() => menu.show());
+// Init auth prima di mostrare il menu (ripristina sessione da localStorage)
+authManager.init().then(() => {
+  // Se loggato, prepara subito il cloud adapter (prima del menu)
+  if (authManager.isLoggedIn) {
+    const cloudAdapter = new SupabaseAdapter(supabase);
+    saveManager._adapter = cloudAdapter;
+    authManager._supabaseAdapter = cloudAdapter;
+    // Pre-fetch hasAutosave per mostrare "CONTINUA" correttamente
+    cloudAdapter.hasAutosave().then(() => {});
+  }
+  splash.show(() => menu.show());
+});
 
 // ── Resize ───────────────────────────────────────────────────────────────────
 

@@ -7,16 +7,18 @@
 // =============================================================================
 
 import { SaveSlotMenu } from './SaveSlotMenu.js';
+import { AuthModal } from './AuthModal.js';
 
 export class MainMenu {
   /**
-   * @param {{ onStart: () => void, onContinue?: () => void, onLoadSlot?: (slotId: string) => void, saveManager?: import('../systems/SaveManager.js').SaveManager }} opts
+   * @param {{ onStart: () => void, onContinue?: () => void, onLoadSlot?: (slotId: string) => void, saveManager?: import('../systems/SaveManager.js').SaveManager, authManager?: import('../systems/AuthManager.js').AuthManager }} opts
    */
-  constructor({ onStart, onContinue, onLoadSlot, saveManager }) {
+  constructor({ onStart, onContinue, onLoadSlot, saveManager, authManager = null }) {
     this._onStart = onStart;
     this._onContinue = onContinue ?? onStart;
     this._onLoadSlot = onLoadSlot ?? onStart;
     this._saveManager = saveManager ?? null;
+    this._authManager = authManager;
     this._el = null;
     this._stack = [];
 
@@ -124,9 +126,23 @@ export class MainMenu {
   // ── Pagine built-in ─────────────────────────────────────────────────────────
 
   _renderRoot(container) {
-    const hasAutosave = this._saveManager?.hasAutosaveSync() ?? false;
+    const isLoggedIn = this._authManager?.isLoggedIn ?? false;
+    const email = this._authManager?.user?.email ?? '';
+    const hasAutosave = isLoggedIn
+      ? (this._authManager._supabaseAdapter?.hasAutosaveSync() ?? (this._saveManager?.hasAutosaveSync() ?? false))
+      : (this._saveManager?.hasAutosaveSync() ?? false);
 
-    let html = '<div class="menu-nav-btns">';
+    const userStrip = isLoggedIn
+      ? `<div class="menu-user-strip">
+           <span class="menu-user-email">${this._escapeHtml(email)}</span>
+           <button class="ghost-btn menu-user-btn" id="menu-btn-logout">LOGOUT</button>
+         </div>`
+      : `<div class="menu-user-strip">
+           <span class="menu-user-guest">OSPITE</span>
+           <button class="ghost-btn menu-user-btn" id="menu-btn-login">ACCEDI / REGISTRATI</button>
+         </div>`;
+
+    let html = userStrip + '<div class="menu-nav-btns">';
     if (hasAutosave) {
       html += `<button class="menu-nav-btn menu-nav-btn--primary" id="menu-btn-continue">CONTINUA</button>`;
     }
@@ -138,6 +154,21 @@ export class MainMenu {
     </div>`;
     container.innerHTML = html;
 
+    if (isLoggedIn) {
+      container.querySelector('#menu-btn-logout').addEventListener('click', () => {
+        this._authManager.logout();
+      });
+    } else {
+      container.querySelector('#menu-btn-login').addEventListener('click', () => {
+        const modal = new AuthModal({
+          authManager: this._authManager,
+          onSuccess: () => this._rerenderRoot(),
+          onClose: () => {},
+        });
+        modal.show();
+      });
+    }
+
     if (hasAutosave) {
       container.querySelector('#menu-btn-continue').addEventListener('click', () => this._onContinue());
     }
@@ -145,6 +176,15 @@ export class MainMenu {
     container.querySelector('#menu-btn-load').addEventListener('click', () => this.push('load-slots'));
     container.querySelector('#menu-btn-options').addEventListener('click', () => this.push('options'));
     container.querySelector('#menu-btn-credits').addEventListener('click', () => this.push('credits'));
+  }
+
+  _rerenderRoot() {
+    if (!this._el || this._stack[this._stack.length - 1] !== 'root') return;
+    this._renderPage('root');
+  }
+
+  _escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   _renderLoadSlots(container) {
@@ -157,6 +197,7 @@ export class MainMenu {
       mode: 'load',
       onClose: () => this.pop(),
       onAction: (slotId) => this._onLoadSlot(slotId),
+      authManager: this._authManager,
     });
     slotMenu.renderInline(container);
   }

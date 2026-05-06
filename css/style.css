@@ -2082,6 +2082,39 @@ body.pre-game #main-area { visibility: hidden; }
   min-height: 120px;
 }
 
+.menu-user-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(240,240,250,0.08);
+  margin-bottom: 4px;
+}
+.menu-user-email {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: rgba(240,240,250,0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+.menu-user-guest {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.58rem;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: rgba(240,240,250,0.25);
+}
+.menu-user-btn {
+  font-size: 0.56rem !important;
+  padding: 4px 10px !important;
+  letter-spacing: 0.10em !important;
+  flex-shrink: 0;
+}
+
 .menu-nav-btns {
   display: flex;
   flex-direction: column;

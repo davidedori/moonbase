@@ -31,10 +31,8 @@ export class LoadingScreen {
     this._el = el;
     this._bar = el.querySelector('#loading-bar-fill');
 
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      el.classList.add('loading-visible');
-      this._animateBar();
-    }));
+    el.classList.add('loading-visible');
+    requestAnimationFrame(() => this._animateBar());
 
     // Timer minimo: segna il tempo come "scaduto" e prova a completare
     setTimeout(() => {

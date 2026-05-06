@@ -2188,8 +2188,7 @@ body.pre-game #main-area { visibility: hidden; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 1.6s ease;
+  opacity: 1;
   pointer-events: none;
 }
 #loading-overlay.loading-visible {

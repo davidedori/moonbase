@@ -12,10 +12,13 @@ export class SaveManager {
   static SAVE_VERSION = 1;
   static AUTOSAVE_INTERVAL_MS = 3 * 60 * 1000; // 3 minuti
 
-  constructor(adapter) {
+  constructor(adapter, authManager = null) {
     this._adapter = adapter;
+    this._authManager = authManager;
     this._autosaveTimer = null;
   }
+
+  isAuthenticated() { return this._authManager?.isLoggedIn ?? false; }
 
   // ── Serializzazione ──────────────────────────────────────────────────────────
 
@@ -347,6 +350,7 @@ export class SaveManager {
    * @param {string} [saveName]
    */
   async saveToSlot(slotId, scene, saveName = null) {
+    if (!this._adapter) { console.warn('[SaveManager] Nessun adapter — accedi per salvare.'); return; }
     const data = this.buildSaveData(scene, saveName);
     await this._adapter.writeSlot(slotId, data);
     console.info(`[SaveManager] Salvato in ${slotId}`);
@@ -357,6 +361,7 @@ export class SaveManager {
    * @param {import('../scenes/MoonbaseScene.js').MoonbaseScene} scene
    */
   async loadFromSlot(slotId, scene) {
+    if (!this._adapter) { console.warn('[SaveManager] Nessun adapter — accedi per caricare.'); return; }
     const data = await this._adapter.readSlot(slotId);
     if (!data) {
       console.warn(`[SaveManager] Slot ${slotId} vuoto o non trovato`);
@@ -368,17 +373,19 @@ export class SaveManager {
 
   /** @param {string} slotId */
   async deleteSlot(slotId) {
+    if (!this._adapter) return;
     await this._adapter.deleteSlot(slotId);
   }
 
   /** @returns {Promise<import('../systems/StorageAdapter.js').SlotMeta[]>} */
   async listSlots() {
+    if (!this._adapter) return [];
     return this._adapter.listSlots();
   }
 
   /** Versione sincrona per il render del MainMenu */
   hasAutosaveSync() {
-    return this._adapter.hasAutosaveSync?.() ?? false;
+    return this._adapter?.hasAutosaveSync?.() ?? false;
   }
 
   // ── Autosave ─────────────────────────────────────────────────────────────────
@@ -391,6 +398,7 @@ export class SaveManager {
     this.stopAutosave();
     this._autosaveTimer = setInterval(async () => {
       if (scene.isGameOver || scene.isGamePaused) return;
+      if (!this.isAuthenticated()) return;
       await this.saveToSlot('autosave', scene);
       // Notifica silenziosa nell'UI se disponibile
       scene.ui?.showToast?.('Partita salvata automaticamente');

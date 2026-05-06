@@ -20,6 +20,7 @@ import { LocalStorageAdapter } from '../systems/StorageAdapter.js';
 import { SaveManager } from '../systems/SaveManager.js';
 import { SaveSlotMenu } from '../ui/SaveSlotMenu.js';
 import { GameMenu } from '../ui/GameMenu.js';
+import { LoadingScreen } from '../ui/LoadingScreen.js';
 import {
   GRID_SIZE,
   TILE_W,
@@ -4475,9 +4476,11 @@ export class MoonbaseScene extends Phaser.Scene {
       onAction: async (slotId) => {
         this._menuOpen = false;
         menu.hide(() => {
-          this.saveManager.loadFromSlot(slotId, this).then(() => {
-            this._setPauseForMenu(false);
-          });
+          this._setPauseForMenu(false);
+          const loading = new LoadingScreen(1200);
+          loading.show(() => {});
+          this.saveManager.loadFromSlot(slotId, this)
+            .finally(() => loading.trackLoader(null));
         });
       },
     });

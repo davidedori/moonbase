@@ -1,7 +1,9 @@
-const MIN_DURATION = 3800; // ms di display minimo garantito
+const MIN_DURATION = 3800; // ms di display minimo garantito (primo caricamento)
 
 export class LoadingScreen {
-  constructor() {
+  /** @param {number} [minDuration] — durata minima in ms (default 3800) */
+  constructor(minDuration = MIN_DURATION) {
+    this._minDuration = minDuration;
     this._el = null;
     this._bar = null;
     this._startTime = 0;
@@ -38,7 +40,7 @@ export class LoadingScreen {
     setTimeout(() => {
       this._timeDone = true;
       this._tryComplete();
-    }, MIN_DURATION);
+    }, this._minDuration);
   }
 
   // Aggancia gli eventi di progresso al LoaderPlugin di Phaser.
@@ -60,7 +62,7 @@ export class LoadingScreen {
   _animateBar() {
     const tick = () => {
       if (!this._el) return;
-      const t = Math.min((Date.now() - this._startTime) / MIN_DURATION, 1);
+      const t = Math.min((Date.now() - this._startTime) / this._minDuration, 1);
       const eased = 1 - Math.pow(1 - t, 2); // ease-out quadratico
       this._setProgress(eased * 0.95);
       if (t < 1) requestAnimationFrame(tick);

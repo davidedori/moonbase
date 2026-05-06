@@ -2183,7 +2183,7 @@ body.pre-game #main-area { visibility: hidden; }
   position: fixed;
   inset: 0;
   background: #000;
-  z-index: 150;
+  z-index: 9500;
   display: flex;
   flex-direction: column;
   align-items: center;

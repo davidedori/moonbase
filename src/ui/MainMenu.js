@@ -148,7 +148,7 @@ export class MainMenu {
     }
     html += `
       <button class="menu-nav-btn" id="menu-btn-newgame">NUOVA PARTITA</button>
-      <button class="menu-nav-btn" id="menu-btn-load">CARICA PARTITA</button>
+      <button class="menu-nav-btn${isLoggedIn ? '' : ' menu-nav-btn--disabled'}" id="menu-btn-load" ${isLoggedIn ? '' : 'disabled title="Accedi per caricare una partita"'}>CARICA PARTITA</button>
       <button class="menu-nav-btn" id="menu-btn-options">OPZIONI</button>
       <button class="menu-nav-btn" id="menu-btn-credits">CREDITI</button>
     </div>`;

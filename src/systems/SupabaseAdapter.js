@@ -58,7 +58,9 @@ export class SupabaseAdapter {
 
   /** @param {string} slotId @param {object} saveData */
   async writeSlot(slotId, saveData) {
+    const { data: { user } } = await this._client.auth.getUser();
     const row = {
+      user_id: user.id,
       slot_id: slotId,
       save_name: saveData.meta?.saveName ?? slotId,
       saved_at: saveData.savedAt ?? new Date().toISOString(),

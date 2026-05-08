@@ -104,7 +104,7 @@ export class LocalStorageAdapter {
         version: 1,
         savedAt: new Date().toISOString(),
         meta: {
-          saveName: 'Salvataggio importato',
+          saveName: 'Imported save',
           lunarDay: old.economy?.stats?.totalDaysElapsed ?? 0,
           buildingCount: old.buildings?.length ?? 0,
           roverCount: old.rovers?.length ?? 0,

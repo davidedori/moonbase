@@ -31,17 +31,17 @@ export class MainMenu {
       },
       {
         id: 'load-slots',
-        title: 'CARICA PARTITA',
+        title: 'LOAD GAME',
         render: (c) => this._renderLoadSlots(c),
       },
       {
         id: 'options',
-        title: 'OPZIONI',
+        title: 'OPTIONS',
         render: (c) => this._renderOptions(c),
       },
       {
         id: 'credits',
-        title: 'CREDITI',
+        title: 'CREDITS',
         render: (c) => this._renderCredits(c),
       },
     ];
@@ -138,19 +138,19 @@ export class MainMenu {
            <button class="ghost-btn menu-user-btn" id="menu-btn-logout">LOGOUT</button>
          </div>`
       : `<div class="menu-user-strip">
-           <span class="menu-user-guest">OSPITE</span>
-           <button class="ghost-btn menu-user-btn" id="menu-btn-login">ACCEDI / REGISTRATI</button>
+           <span class="menu-user-guest">GUEST</span>
+           <button class="ghost-btn menu-user-btn" id="menu-btn-login">LOG IN / REGISTER</button>
          </div>`;
 
     let html = userStrip + '<div class="menu-nav-btns">';
     if (hasAutosave) {
-      html += `<button class="menu-nav-btn menu-nav-btn--primary" id="menu-btn-continue">CONTINUA</button>`;
+      html += `<button class="menu-nav-btn menu-nav-btn--primary" id="menu-btn-continue">CONTINUE</button>`;
     }
     html += `
-      <button class="menu-nav-btn" id="menu-btn-newgame">NUOVA PARTITA</button>
-      <button class="menu-nav-btn${isLoggedIn ? '' : ' menu-nav-btn--disabled'}" id="menu-btn-load" ${isLoggedIn ? '' : 'disabled title="Accedi per caricare una partita"'}>CARICA PARTITA</button>
-      <button class="menu-nav-btn" id="menu-btn-options">OPZIONI</button>
-      <button class="menu-nav-btn" id="menu-btn-credits">CREDITI</button>
+      <button class="menu-nav-btn" id="menu-btn-newgame">NEW GAME</button>
+      <button class="menu-nav-btn${isLoggedIn ? '' : ' menu-nav-btn--disabled'}" id="menu-btn-load" ${isLoggedIn ? '' : 'disabled title="Log in to load a game"'}>LOAD GAME</button>
+      <button class="menu-nav-btn" id="menu-btn-options">OPTIONS</button>
+      <button class="menu-nav-btn" id="menu-btn-credits">CREDITS</button>
     </div>`;
     container.innerHTML = html;
 
@@ -189,7 +189,7 @@ export class MainMenu {
 
   _renderLoadSlots(container) {
     if (!this._saveManager) {
-      container.innerHTML = `<p class="menu-placeholder">— NESSUN SISTEMA DI SALVATAGGIO —</p>`;
+      container.innerHTML = `<p class="menu-placeholder">— NO SAVE SYSTEM —</p>`;
       return;
     }
     const slotMenu = new SaveSlotMenu({
@@ -209,7 +209,7 @@ export class MainMenu {
   _renderCredits(container) {
     container.innerHTML = `
       <p class="menu-placeholder">
-        Sviluppato da Davide Dorigatti
+        Developed by <a href="https://davidedorigatti.com" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;text-underline-offset:3px;">Davide Dorigatti</a>
       </p>
     `;
   }

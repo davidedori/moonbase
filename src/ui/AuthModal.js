@@ -53,8 +53,8 @@ export class AuthModal {
           <span class="auth-title">ACCOUNT</span>
         </div>
         <div class="auth-tabs">
-          <button class="auth-tab ${this._mode === 'login' ? 'auth-tab--active' : ''}" data-mode="login">ACCEDI</button>
-          <button class="auth-tab ${this._mode === 'register' ? 'auth-tab--active' : ''}" data-mode="register">REGISTRATI</button>
+          <button class="auth-tab ${this._mode === 'login' ? 'auth-tab--active' : ''}" data-mode="login">LOG IN</button>
+          <button class="auth-tab ${this._mode === 'register' ? 'auth-tab--active' : ''}" data-mode="register">REGISTER</button>
         </div>
         <div class="auth-body" id="auth-body"></div>
         <div class="auth-error" id="auth-error" style="display:none"></div>
@@ -79,16 +79,16 @@ export class AuthModal {
         <div class="auth-field">
           <label class="auth-label" for="auth-email">EMAIL</label>
           <input class="auth-input" id="auth-email" type="email" autocomplete="email"
-            placeholder="nome@esempio.com" required />
+            placeholder="name@example.com" required />
         </div>
         <div class="auth-field">
           <label class="auth-label" for="auth-password">PASSWORD</label>
           <input class="auth-input" id="auth-password" type="password"
             autocomplete="${isRegister ? 'new-password' : 'current-password'}"
-            placeholder="${isRegister ? 'Almeno 6 caratteri' : '••••••••'}" required />
+            placeholder="${isRegister ? 'At least 6 characters' : '••••••••'}" required />
         </div>
         <button class="ghost-btn auth-submit-btn" type="submit" id="auth-submit">
-          ${isRegister ? 'CREA ACCOUNT' : 'ACCEDI'}
+          ${isRegister ? 'CREATE ACCOUNT' : 'LOG IN'}
         </button>
       </form>
     `;
@@ -135,7 +135,7 @@ export class AuthModal {
     const btn = this._el?.querySelector('#auth-submit');
     if (!btn) return;
     btn.disabled = on;
-    btn.textContent = on ? '...' : (this._mode === 'register' ? 'CREA ACCOUNT' : 'ACCEDI');
+    btn.textContent = on ? '...' : (this._mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN');
   }
 
   _showError(msg) {
@@ -151,12 +151,12 @@ export class AuthModal {
 
   _friendlyError(error) {
     const msg = error?.message ?? '';
-    if (msg.includes('Invalid login credentials')) return 'Email o password errati.';
-    if (msg.includes('Email not confirmed')) return 'Controlla la tua email per confermare l\'account.';
-    if (msg.includes('User already registered')) return 'Email già registrata — prova ad accedere.';
-    if (msg.includes('Password should be at least')) return 'La password deve essere di almeno 6 caratteri.';
-    if (msg.includes('Unable to validate email address')) return 'Indirizzo email non valido.';
-    return msg || 'Errore di connessione. Riprova.';
+    if (msg.includes('Invalid login credentials')) return 'Incorrect email or password.';
+    if (msg.includes('Email not confirmed')) return 'Check your email to confirm your account.';
+    if (msg.includes('User already registered')) return 'Email already registered — try logging in.';
+    if (msg.includes('Password should be at least')) return 'Password must be at least 6 characters.';
+    if (msg.includes('Unable to validate email address')) return 'Invalid email address.';
+    return msg || 'Connection error. Please try again.';
   }
 }
 

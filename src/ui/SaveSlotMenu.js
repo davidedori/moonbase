@@ -13,8 +13,8 @@ function formatDate(isoString) {
   if (!isoString) return '—';
   try {
     const d = new Date(isoString);
-    return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' })
-      + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   } catch {
     return '—';
   }
@@ -46,7 +46,7 @@ export class SaveSlotMenu {
       <div class="save-slot-panel">
         <div class="save-slot-header">
           <button class="ghost-btn save-slot-close-btn" id="save-slot-close">✕</button>
-          <span class="save-slot-title">${this._mode === 'save' ? 'SALVA PARTITA' : 'CARICA PARTITA'}</span>
+          <span class="save-slot-title">${this._mode === 'save' ? 'SAVE GAME' : 'LOAD GAME'}</span>
         </div>
         <div class="save-slot-list" id="save-slot-list"></div>
       </div>
@@ -99,7 +99,7 @@ export class SaveSlotMenu {
     if (this._mode === 'save') {
       const newBtn = document.createElement('button');
       newBtn.className = 'ghost-btn save-slot-new-btn';
-      newBtn.textContent = '＋  NUOVO SALVATAGGIO';
+      newBtn.textContent = '＋  NEW SAVE';
       newBtn.addEventListener('click', () => this._doSave(null));
       this._contentEl.appendChild(newBtn);
     }
@@ -115,7 +115,7 @@ export class SaveSlotMenu {
     if (this._mode === 'load' && this._slots.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'save-slot-empty-state';
-      empty.textContent = 'Nessun salvataggio disponibile.';
+      empty.textContent = 'No saves available.';
       this._contentEl.appendChild(empty);
     }
   }
@@ -137,17 +137,17 @@ export class SaveSlotMenu {
         <span class="save-slot-name">${this._escape(meta.saveName ?? slotId)}</span>
       </div>
       <div class="save-slot-card-meta">
-        <span>Giorno ${meta.lunarDay ?? 0}</span>
+        <span>Day ${meta.lunarDay ?? 0}</span>
         <span>·</span>
-        <span>${meta.buildingCount ?? 0} edifici</span>
+        <span>${meta.buildingCount ?? 0} buildings</span>
         <span>·</span>
         <span>${meta.roverCount ?? 0} rover</span>
       </div>
       <div class="save-slot-card-date">${formatDate(meta.savedAt)}</div>
       <div class="save-slot-card-actions">
-        ${canOverwrite ? `<button class="ghost-btn save-slot-action-btn" data-action="primary" data-slot="${slotId}">SOVRASCRIVI</button>` : ''}
-        ${canLoad ? `<button class="ghost-btn save-slot-action-btn" data-action="primary" data-slot="${slotId}">CARICA</button>` : ''}
-        ${canDelete ? `<button class="ghost-btn save-slot-action-btn save-slot-action-btn--danger" data-action="delete" data-slot="${slotId}">CANCELLA</button>` : ''}
+        ${canOverwrite ? `<button class="ghost-btn save-slot-action-btn" data-action="primary" data-slot="${slotId}">OVERWRITE</button>` : ''}
+        ${canLoad ? `<button class="ghost-btn save-slot-action-btn" data-action="primary" data-slot="${slotId}">LOAD</button>` : ''}
+        ${canDelete ? `<button class="ghost-btn save-slot-action-btn save-slot-action-btn--danger" data-action="delete" data-slot="${slotId}">DELETE</button>` : ''}
       </div>
     `;
 
@@ -178,7 +178,7 @@ export class SaveSlotMenu {
       this._showAuthGate(slotId);
       return;
     }
-    const defaultName = `Partita — ${new Date().toLocaleDateString('it-IT')}`;
+    const defaultName = `Game — ${new Date().toLocaleDateString('en-US')}`;
     const finalId = slotId ?? SaveManager.generateSaveId();
     this._showNameInput(defaultName, (name) => this._onAction(finalId, name));
   }
@@ -189,11 +189,11 @@ export class SaveSlotMenu {
     const form = document.createElement('div');
     form.className = 'save-slot-name-form';
     form.innerHTML = `
-      <span class="save-slot-name-label">NOME SALVATAGGIO</span>
+      <span class="save-slot-name-label">SAVE NAME</span>
       <div class="save-slot-name-row">
         <input class="save-slot-name-input" type="text" maxlength="60" spellcheck="false" autocomplete="off" />
-        <button class="ghost-btn save-slot-action-btn" id="ssn-confirm">SALVA</button>
-        <button class="save-slot-name-cancel" id="ssn-cancel">ANNULLA</button>
+        <button class="ghost-btn save-slot-action-btn" id="ssn-confirm">SAVE</button>
+        <button class="save-slot-name-cancel" id="ssn-cancel">CANCEL</button>
       </div>
     `;
 
@@ -232,7 +232,7 @@ export class SaveSlotMenu {
   }
 
   async _handleDelete(meta, card) {
-    if (!confirm(`Eliminare il salvataggio "${this._escape(meta.saveName ?? meta.slotId)}"?`)) return;
+    if (!confirm(`Delete save "${this._escape(meta.saveName ?? meta.slotId)}"?`)) return;
     await this._saveManager.deleteSlot(meta.slotId);
     await this.refresh();
   }
@@ -246,8 +246,8 @@ export class SaveSlotMenu {
       const wrap = document.createElement('div');
       wrap.className = 'save-slot-confirm-row';
       wrap.innerHTML = `
-        <span class="save-slot-confirm-msg">Sovrascrivere?</span>
-        <button class="ghost-btn save-slot-action-btn" id="confirm-yes">SÌ</button>
+        <span class="save-slot-confirm-msg">Overwrite?</span>
+        <button class="ghost-btn save-slot-action-btn" id="confirm-yes">YES</button>
         <button class="ghost-btn" id="confirm-no">NO</button>
       `;
       wrap.querySelector('#confirm-yes').addEventListener('click', () => { wrap.remove(); onConfirm(); });

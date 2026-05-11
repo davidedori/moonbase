@@ -97,7 +97,7 @@ export const COMMAND_CREW_GEN = 5;    // crew fissa del command center
 
 // Hub distretti
 export const HABITAT_HUB_COST = 110; export const HABITAT_HUB_COST_COMP = 30;
-export const LOGISTICS_HUB_COST = 135; export const LOGISTICS_HUB_COST_COMP = 45;
+export const LOGISTICS_HUB_COST = 80; export const LOGISTICS_HUB_COST_COMP = 20;
 export const MINING_HUB_COST = 70; export const MINING_HUB_COST_COMP = 0;
 export const CRYO_HUB_COST = 85; export const CRYO_HUB_COST_COMP = 0;
 export const POWER_CENTER_COST = 70; export const POWER_CENTER_COST_COMP = 30;

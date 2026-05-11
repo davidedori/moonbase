@@ -300,13 +300,16 @@ export class Rover extends Phaser.GameObjects.Sprite {
       return;
     }
 
-    // Consuma 1 unità di carica per questa casella
-    this.charge--;
+    const nextStep = this._path.shift();
+
+    // Conduit integro funge da strada: non consuma carica
+    const onConduit = this.scene.buildings.find(
+      b => b.col === nextStep.col && b.row === nextStep.row && b.type === 'conduit' && !b.isDamaged
+    );
+    if (!onConduit) this.charge--;
     this._movedThisTick = true;
     this._updateChargeBar();
     if (this.scene.selectedEntity?.ref === this) this.scene._updateContextPanel();
-
-    const nextStep = this._path.shift();
     const prevCol = this.col;
     const prevRow = this.row;
 

@@ -221,7 +221,7 @@ body {
 ========================================================= */
 #top-bar {
   position: relative;
-  z-index: 500;
+  z-index: 3000;
   width: 100%;
   height: var(--top-bar-h);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.55) 100%);
@@ -583,6 +583,250 @@ body {
 #build-preview-tooltip.visible {
   opacity: 1;
   transform: translateX(0) scale(1);
+}
+
+/* =========================================================
+   CHIP DETAIL PANELS (hover top-bar chips)
+========================================================= */
+.chip-panel {
+  position: fixed;
+  width: 260px;
+  background: rgba(12, 15, 20, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--ghost-border);
+  border-radius: 4px;
+  padding: 16px;
+  z-index: 3001;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+
+  opacity: 0;
+  transform: translateY(-8px) scale(0.97);
+  transition: opacity 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+              transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.chip-panel.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.chip-panel::before {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: 0;
+  right: 0;
+  height: 16px;
+}
+
+.chip-panel-title {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+
+/* Policy selector (3-way) */
+.chip-policy-bar {
+  display: flex;
+  border: 1px solid var(--ghost-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cpb-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--ghost-border);
+  color: var(--text-dim);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 5px 2px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cpb-btn:last-child { border-right: none; }
+.cpb-btn:hover:not(:disabled) {
+  background: var(--ghost-bg-hover);
+  color: var(--cpb-accent, var(--white));
+}
+.cpb-btn.active {
+  background: var(--ghost-bg-hover);
+  color: var(--cpb-accent, var(--white));
+}
+.cpb-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Manual toggle */
+.chip-manual-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.chip-manual-toggle {
+  width: 28px;
+  height: 14px;
+  border-radius: 7px;
+  border: 1px solid var(--ghost-border);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.chip-manual-toggle::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  top: 2px;
+  left: 2px;
+  transition: transform 0.2s, background 0.2s;
+}
+.chip-manual-toggle.active {
+  background: var(--chip-color, var(--ghost-bg-hover));
+  border-color: var(--chip-color, var(--ghost-border-str));
+  opacity: 0.75;
+}
+.chip-manual-toggle.active::after {
+  transform: translateX(14px);
+  background: var(--white);
+}
+
+.chip-panel-header {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.chip-panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chip-panel-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.chip-panel-row.cpr-net {
+  border-top: 1px solid var(--ghost-border);
+  margin-top: 2px;
+  padding-top: 4px;
+}
+
+.cpr-label {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.cpr-val {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--white);
+}
+
+/* Energy panel — 3-column grid (label | day | night) */
+.chip-nrg-grid .chip-panel-row {
+  display: grid;
+  grid-template-columns: 1fr 36px 36px;
+  gap: 0 6px;
+  align-items: center;
+}
+.chip-nrg-grid .chip-panel-row .cpr-val {
+  text-align: right;
+}
+.cpr-col-hdr {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  opacity: 0.7;
+}
+.cpr-nrg-hdr {
+  margin-bottom: 2px;
+}
+
+.chip-nrg-battery-section {
+  margin-top: 16px;
+}
+.chip-nrg-battery-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--col-nrg);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.chip-nrg-status-ico {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+}
+.chip-nrg-status-ico.charging {
+  animation: blink-animation 1.4s ease-in-out infinite;
+}
+.chip-nrg-status-ico.discharging {
+  animation: blink-animation 0.9s ease-in-out infinite;
+}
+
+.res-nrg-arrow {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+}
+.res-nrg-arrow.charging {
+  animation: blink-animation 1.4s ease-in-out infinite;
+}
+.res-nrg-arrow.discharging {
+  animation: blink-animation 0.9s ease-in-out infinite;
+}
+.chip-nrg-battery-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chip-nrg-bar-row {
+  padding: 0 0 2px;
+}
+.chip-nrg-bar {
+  height: 3px;
+  background: var(--ghost-bg-active);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.chip-nrg-bar-fill {
+  height: 100%;
+  background: var(--col-nrg);
+  border-radius: 2px;
+  transition: width 0.4s ease;
 }
 
 .bp-title {
@@ -1610,7 +1854,9 @@ a,
 [role="button"],
 button *,
 a *,
-.res-chip * {
+.res-chip *,
+.cpb-btn,
+.chip-manual-toggle {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><path d="M 4 5 L 13 25 L 16 16 L 25 13 Z" fill="%23000000" opacity="0.3"/><path d="M 2 3 L 11 23 L 14 14 L 23 11 Z" fill="%2358a6ff" stroke="%2305050a" stroke-width="1.5" stroke-linejoin="round"/></svg>') 2 3, pointer !important;
 }
 

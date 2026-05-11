@@ -66,6 +66,8 @@ export class SaveManager {
         components: eco.components,
         energyStored: eco.energyStored,
         isDay: eco.isDay,
+        isPaused: eco.isPaused ?? false,
+        phaseRemainingMs: eco._dayNightTimer?.getRemaining() ?? 0,
         emergencyTimer: eco.emergencyTimer,
         deadlockTimer: eco.deadlockTimer,
         _solarFlareTicksRemaining: eco._solarFlareTicksRemaining ?? 0,
@@ -91,6 +93,7 @@ export class SaveManager {
         isPowered: r.isPowered ?? true,
       })),
       missionStep: scene.missionControl?.step ?? 0,
+      pois: (scene.pois ?? []).map(p => ({ type: p.type, col: p.col, row: p.row, reward: p.reward })),
       terrain,
       explored,
       capacityGrid: scene.capacityGrid,
@@ -144,6 +147,10 @@ export class SaveManager {
     });
     scene.rovers.length = 0;
 
+    // --- 2b. Distruggi POI esistenti ---
+    (scene.pois ?? []).forEach(p => p.sprite?.destroy());
+    scene.pois = [];
+
     // --- 3. Reset griglie, shadow e fog ---
     scene.isGamePaused = false;
     scene.districts.length = 0;
@@ -183,6 +190,11 @@ export class SaveManager {
       for (let c = 0; c < GRID_SIZE; c++) {
         scene._refreshFogEdgeAt?.(r, c);
       }
+    }
+
+    // --- 3b2. Ripristina POI (dopo exploredTiles, per la visibility corretta) ---
+    for (const p of (data.pois ?? [])) {
+      scene._restorePOI?.(p);
     }
 
     // --- 3c. Ripristina terreno ---
@@ -257,7 +269,7 @@ export class SaveManager {
     scene.economy.ice = eco.ice;
     scene.economy.oxygen = eco.oxygen;
     scene.economy.components = eco.components ?? 40;
-    scene.economy.syncDayNight(eco.isDay);
+    scene.economy.syncDayNight(eco.isDay, eco.phaseRemainingMs ?? 0);
     scene.economy.emergencyTimer = eco.emergencyTimer ?? 0;
     scene.economy.deadlockTimer = eco.deadlockTimer ?? 0;
     if (eco.energyStored !== undefined) scene.economy.energyStored = eco.energyStored;
@@ -340,6 +352,15 @@ export class SaveManager {
     // --- 11. Aggiorna UI ---
     scene.economy.updateProjections();
     scene._centerCameraOnGrid();
+
+    // --- 12. Ripristina stato di pausa ---
+    if (data.economy?.isPaused) {
+      scene.economy.isPaused = true;
+      scene.time.paused = true;
+      scene.tweens.pauseAll();
+      scene.rovers.forEach(r => r.pauseMovement?.());
+      scene.ui?.updatePauseButton(true);
+    }
   }
 
   // ── CRUD slot ────────────────────────────────────────────────────────────────

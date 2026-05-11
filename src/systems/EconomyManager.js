@@ -166,7 +166,7 @@ export class EconomyManager {
     this._dayNightTimer = this._scene.time.delayedCall(duration, () => this.startDayTimer());
   }
 
-  syncDayNight(isDay) {
+  syncDayNight(isDay, phaseRemainingMs = 0) {
     // 1. Ferma tutto ciò che è in corso
     if (this._dayNightTimer) this._dayNightTimer.remove();
     if (this._dayNightTween) this._dayNightTween.stop();
@@ -178,9 +178,11 @@ export class EconomyManager {
     // 3. Applica l'oscurità istantaneamente, senza tween
     this._scene.darknessOverlay.setAlpha(this.isDay ? 0 : 0.5);
 
-    // 4. Fai ripartire il countdown della fase corretta
+    // 4. Fai ripartire il countdown dal tempo rimanente salvato (fallback alla durata piena)
+    const fullDuration = this.isDay ? DAY_DURATION_MS : NIGHT_DURATION_MS;
+    const delay = phaseRemainingMs > 0 ? phaseRemainingMs : fullDuration;
     this._dayNightTimer = this._scene.time.delayedCall(
-      this.isDay ? DAY_DURATION_MS : NIGHT_DURATION_MS,
+      delay,
       () => this.isDay ? this.startNightTimer() : this.startDayTimer()
     );
   }
@@ -232,6 +234,11 @@ export class EconomyManager {
 
     let totalO2Produced = 0;
     let totalO2Consumed = 0;
+    let totalRegProduced = 0;
+    let totalIceProduced = 0;
+    let totalCompProduced = 0;
+    let totalRegConsumed = 0;
+    let totalIceConsumed = 0;
 
     // --- 1. Generatori ---
     this.energyProduced = 0;
@@ -358,7 +365,11 @@ export class EconomyManager {
           this.energyConsumed += energyNeeded;
           crewPool -= crewNeeded;
           this.crewEmployed += crewNeeded;
-          if (conv) this[conv.inputRes] -= conv.inputCost;
+          if (conv) {
+            this[conv.inputRes] -= conv.inputCost;
+            if (conv.inputRes === 'regolith') totalRegConsumed += conv.inputCost;
+            else if (conv.inputRes === 'ice')  totalIceConsumed += conv.inputCost;
+          }
 
           // FIX: Sinergie Reali applicate all'output
           let outputAmount = conv ? conv.outputAmount : (info.regolithGen || info.iceGen || 0);
@@ -374,9 +385,8 @@ export class EconomyManager {
 
           if (conv) {
             this[conv.outputRes] += outputAmount;
-            if (conv.outputRes === 'oxygen') {
-              totalO2Produced += outputAmount;
-            }
+            if (conv.outputRes === 'oxygen')     totalO2Produced  += outputAmount;
+            else if (conv.outputRes === 'components') totalCompProduced += outputAmount;
             active = true;
           } else if (b.type === 'regolith_extractor' || b.type === 'ice_extractor' || b.type === 'deep_drill') {
             // FIX: Rimosso l'auto-refill. Se è vuota, resta a 0.
@@ -386,9 +396,11 @@ export class EconomyManager {
               this._scene.capacityGrid[b.row][b.col] -= actualExtract;
               if (b.type === 'regolith_extractor' || b.type === 'deep_drill') {
                 this.regolith += actualExtract;
+                totalRegProduced += actualExtract;
                 hasActiveRegExtractor = true;
               } else {
                 this.ice += actualExtract;
+                totalIceProduced += actualExtract;
               }
               if (this._scene.capacityGrid[b.row][b.col] <= 0) {
                 this.emitter.emit('resource-depleted', { col: b.col, row: b.row });
@@ -458,6 +470,15 @@ export class EconomyManager {
     }
 
     // --- Finalize Tick ---
+    this.o2Produced   = totalO2Produced;
+    this.o2Consumed   = totalO2Consumed;
+    this.regProduced  = totalRegProduced;
+    this.regConsumed  = totalRegConsumed;
+    this.iceProduced  = totalIceProduced;
+    this.iceConsumed  = totalIceConsumed;
+    this.compProduced = totalCompProduced;
+    this.compConsumed = 0;
+
     // Il delta ora mostra il flusso netto, indipendentemente dal limite del serbatoio
     this.deltaO2 = totalO2Produced - totalO2Consumed;
     // Fix: clamp O2 al cap (senza clamp poteva superare maxOxygen)
@@ -533,6 +554,14 @@ export class EconomyManager {
       deltaO2: this.deltaO2,
       deltaComp: this.deltaComp,
       deltaEnergy: this.deltaEnergy,
+      regProduced: this.regProduced,
+      regConsumed: this.regConsumed,
+      iceProduced: this.iceProduced,
+      iceConsumed: this.iceConsumed,
+      o2Produced: this.o2Produced,
+      o2Consumed: this.o2Consumed,
+      compProduced: this.compProduced,
+      compConsumed: this.compConsumed,
       deadlockActive: this.deadlockTimer > 0,
       deadlockTime: DEADLOCK_MAX_TIME - this.deadlockTimer,
       stats: this.stats,
@@ -663,6 +692,8 @@ export class EconomyManager {
 
     // 2. Generatori
     this.energyProduced = 0;
+    this.energyProducedDay = 0;
+    this.energyProducedNight = 0;
     const flareMult = this._solarFlareTicksRemaining > 0 ? SOLAR_FLARE_ENERGY_MULT : 1;
     for (const b of this.buildings) {
       if (b.connected === false || b.isPowered === false || b.isConstructing) continue;
@@ -670,8 +701,12 @@ export class EconomyManager {
 
       if (b.type === 'solar_array') {
         this.energyProduced += (this.isDay ? BUILDINGS_INFO.solar_array.energyGenDay : BUILDINGS_INFO.solar_array.energyGenNight) * flareMult;
+        this.energyProducedDay   += BUILDINGS_INFO.solar_array.energyGenDay   * flareMult;
+        this.energyProducedNight += BUILDINGS_INFO.solar_array.energyGenNight * flareMult;
       } else if (b.type === 'rtg') {
-        this.energyProduced += BUILDINGS_INFO.rtg.energyGenDay * flareMult;
+        this.energyProduced      += BUILDINGS_INFO.rtg.energyGenDay * flareMult;
+        this.energyProducedDay   += BUILDINGS_INFO.rtg.energyGenDay * flareMult;
+        this.energyProducedNight += BUILDINGS_INFO.rtg.energyGenDay * flareMult;
       }
     }
 
@@ -726,6 +761,9 @@ export class EconomyManager {
     this.deltaReg = 0;
     this.deltaIce = 0;
     this.deltaComp = 0;
+    let simRegProduced = 0, simRegConsumed = 0;
+    let simIceProduced = 0, simIceConsumed = 0;
+    let simCompProduced = 0;
 
     const PRIORITY = { ice_extractor: 0, isru_plant: 1, botany_greenhouse: 2, regolith_extractor: 3, deep_drill: 4, component_factory: 5, rover_workshop: 6, medbay: 7 };
     const consumers = this.buildings
@@ -764,10 +802,12 @@ export class EconomyManager {
             if (conv.inputRes === 'regolith') {
               simRegolith -= conv.inputCost;
               this.deltaReg -= conv.inputCost;
+              simRegConsumed += conv.inputCost;
             }
             if (conv.inputRes === 'ice') {
               simIce -= conv.inputCost;
               this.deltaIce -= conv.inputCost;
+              simIceConsumed += conv.inputCost;
             }
           }
 
@@ -784,7 +824,7 @@ export class EconomyManager {
 
           if (conv) {
             if (conv.outputRes === 'oxygen') simTotalO2Produced += outputAmount;
-            else if (conv.outputRes === 'components') this.deltaComp += outputAmount;
+            else if (conv.outputRes === 'components') { this.deltaComp += outputAmount; simCompProduced += outputAmount; }
             active = true;
           } else if (b.type === 'regolith_extractor' || b.type === 'deep_drill') {
             const capacity = this._scene.capacityGrid[b.row][b.col] || 0;
@@ -792,6 +832,7 @@ export class EconomyManager {
               const act = Math.min(capacity, outputAmount);
               this.deltaReg += act;
               simRegolith += act;
+              simRegProduced += act;
               active = true;
             }
           } else if (b.type === 'ice_extractor') {
@@ -800,6 +841,7 @@ export class EconomyManager {
               const act = Math.min(capacity, outputAmount);
               this.deltaIce += act;
               simIce += act;
+              simIceProduced += act;
               active = true;
             }
           } else {
@@ -818,7 +860,15 @@ export class EconomyManager {
       }
     }
 
-    this.deltaO2 = simTotalO2Produced - simTotalO2Consumed;
+    this.deltaO2      = simTotalO2Produced - simTotalO2Consumed;
+    this.regProduced  = simRegProduced;
+    this.regConsumed  = simRegConsumed;
+    this.iceProduced  = simIceProduced;
+    this.iceConsumed  = simIceConsumed;
+    this.compProduced = simCompProduced;
+    this.compConsumed = 0;
+    this.o2Produced   = simTotalO2Produced;
+    this.o2Consumed   = simTotalO2Consumed;
     // FIX: Usa energyRequired anche qui per la UI in tempo reale
     this.deltaEnergy = this.energyProduced - this.energyRequired;
     this.maxOxygen     = simMaxOxygen;

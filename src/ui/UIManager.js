@@ -3,6 +3,7 @@
 // =============================================================================
 
 import { BUILDINGS_INFO, ROVER_COST, ROVER_COST_TYPE, DISTRICT_TYPES } from '../constants.js';
+import { ECONOMY_TICK_MS } from '../balance.js';
 
 // Lucide icon name per ogni tipo di edificio
 export const BUILDING_ICONS = {
@@ -15,9 +16,12 @@ export const BUILDING_ICONS = {
   medbay: 'heart-pulse',
   recycling_facility: 'refresh-cw',
   deep_drill: 'drill',
-  h2o_tank: 'droplet',
+  h2o_tank: 'gauge',
   battery_bank: 'battery-full',
   rover_workshop: 'wrench',
+  component_depot: 'boxes',
+  regolith_depot: 'layers',
+  ice_silo: 'cylinder',
   solar_array: 'sun',
   rtg: 'atom',
   hab_module: 'home',
@@ -46,6 +50,13 @@ function ico(name, size = 14, color = '') {
 /** Re-process any new data-lucide elements injected into the DOM. */
 function refreshIcons() {
   if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function fmtTime(secs) {
+  if (secs === null || !isFinite(secs) || secs < 0) return '—';
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -103,6 +114,7 @@ function canBuildAnything(buildableTypes, regolith, components) {
   for (const [type, info] of Object.entries(BUILDINGS_INFO)) {
     // Escludiamo il Comando e i moduli non-distretto
     if (type === 'command' || !info.isDistrictCenter) continue;
+    if (info.districtType && !DISTRICT_TYPES[info.districtType]) continue;
 
     if (!buildableTypes.has(type)) continue;
     const regOk = (info.cost ?? 0) === 0 || regolith >= (info.cost ?? 0);
@@ -132,9 +144,16 @@ export class UIManager {
     this.emitter = emitter;
     this._callbacks = callbacks;
 
+    this._resourcePolicies = { reg: 'max', ice: 'max', comp: 'max', o2: 'max' };
+    this._resourceManual   = { reg: false, ice: false, comp: false, o2: false };
+
+    this._gameSpeed        = 1;
+    this._gamePaused       = false;
+
     this._setupEventListeners();
     this._setupStaticButtonHandlers();
     this._setupClickPropagation();
+    this._setupChipPanels();
 
     // Terminal Houston State (Sprint 4)
     this._commsQueue = [];
@@ -167,6 +186,7 @@ export class UIManager {
     speedBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         const speed = parseInt(btn.dataset.speed);
+        this._gameSpeed = speed;
         this.emitter.emit('change-speed', { speed });
         this.updateSpeedButtons(speed);
       });
@@ -181,6 +201,292 @@ export class UIManager {
       el.addEventListener('click', (e) => e.stopPropagation());
       el.addEventListener('contextmenu', (e) => e.preventDefault());
     }
+  }
+
+  _setupChipPanels() {
+    const POLICY_RES_KEYS = ['reg', 'ice', 'comp', 'o2'];
+    const RES_COLORS = {
+      reg: 'var(--col-reg)', ice: 'var(--col-ice)',
+      comp: 'var(--col-comp)', o2: 'var(--col-o2)',
+    };
+    const RES_TITLES = { reg: 'REGOLITH', ice: 'ICE', comp: 'COMPONENTS', o2: 'OXYGEN' };
+
+    const chips = [
+      { chipId: 'chip-reg',  panelId: 'chip-panel-reg',  resKey: 'reg'  },
+      { chipId: 'chip-comp', panelId: 'chip-panel-comp', resKey: 'comp' },
+      { chipId: 'chip-ice',  panelId: 'chip-panel-ice',  resKey: 'ice'  },
+      { chipId: 'chip-o2',   panelId: 'chip-panel-o2',   resKey: 'o2'   },
+      { chipId: 'chip-nrg',  panelId: 'chip-panel-nrg',  resKey: null, title: 'ENERGY', color: 'var(--col-nrg)'  },
+      { chipId: 'chip-crew', panelId: 'chip-panel-crew', resKey: null, title: 'CREW',   color: 'var(--col-crew)' },
+    ];
+
+    chips.forEach(({ chipId, panelId, resKey, title, color }) => {
+      const chip  = document.getElementById(chipId);
+      const panel = document.getElementById(panelId);
+      if (!chip || !panel) return;
+
+      // --- Struttura HTML statica ---
+      if (resKey) {
+        const color = RES_COLORS[resKey] || 'var(--white)';
+        panel.innerHTML = `
+          <div class="chip-panel-title" style="color:${color}">${RES_TITLES[resKey]}</div>
+          <div class="chip-policy-bar" data-res="${resKey}">
+            <button class="cpb-btn" data-mode="off" style="--cpb-accent:${color}">⏻ OFF</button>
+            <button class="cpb-btn" data-mode="stabilize" style="--cpb-accent:${color}">⚖ BALANCE</button>
+            <button class="cpb-btn active" data-mode="max" style="--cpb-accent:${color}">⚡ MAX</button>
+          </div>
+          <div class="chip-manual-row">
+            <span class="cpr-label">MANUAL CONTROL</span>
+            <div class="chip-manual-toggle" data-res="${resKey}" style="--chip-color:${color}"></div>
+          </div>
+          <div class="chip-breakdown"></div>`;
+
+        // Click su bottoni policy
+        panel.querySelector('.chip-policy-bar').addEventListener('click', (e) => {
+          const btn = e.target.closest('.cpb-btn');
+          if (!btn || btn.disabled) return;
+          e.stopPropagation();
+          const mode = btn.dataset.mode;
+          this._resourcePolicies[resKey] = mode;
+          this._resourceManual[resKey] = false;
+          this._callbacks.onResourcePolicy?.(resKey, mode);
+          this._refreshPanelUI(resKey);
+        });
+
+        // Click su toggle manuale
+        panel.querySelector('.chip-manual-toggle').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const wasManual = this._resourceManual[resKey];
+          this._resourceManual[resKey] = !wasManual;
+          if (wasManual) {
+            // Disattiva manuale → ri-applica policy corrente
+            this._callbacks.onResourcePolicy?.(resKey, this._resourcePolicies[resKey]);
+          }
+          this._refreshPanelUI(resKey);
+        });
+      } else {
+        panel.innerHTML = `
+          <div class="chip-panel-title" style="color:${color ?? 'var(--white)'}">${title}</div>
+          <div class="chip-breakdown"></div>`;
+      }
+
+      // --- Hover: apre su mouseenter, chiude controllando :hover dopo delay ---
+      const maybeHide = () => {
+        setTimeout(() => {
+          if (!chip.matches(':hover') && !panel.matches(':hover')) {
+            panel.classList.remove('visible');
+          }
+        }, 100);
+      };
+
+      chip.addEventListener('mouseenter', () => {
+        // Chiude eventuali altri panel aperti
+        document.querySelectorAll('.chip-panel').forEach(p => {
+          if (p !== panel) p.classList.remove('visible');
+        });
+        const rect = chip.getBoundingClientRect();
+        const panelW = 260;
+        let left = rect.left + rect.width / 2 - panelW / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - panelW - 8));
+        panel.style.left = `${left}px`;
+        panel.style.top  = `${rect.bottom + 16}px`;
+        panel.classList.add('visible');
+      });
+
+      chip.addEventListener('mouseleave', maybeHide);
+      panel.addEventListener('mouseleave', maybeHide);
+
+      // Impedisce che i click sul panel arrivino al canvas
+      panel.addEventListener('mousedown', (e) => e.stopPropagation());
+    });
+  }
+
+  _refreshPanelUI(resKey) {
+    const panel = document.getElementById(`chip-panel-${resKey}`);
+    if (!panel) return;
+    const isManual  = this._resourceManual[resKey];
+    const activeMode = this._resourcePolicies[resKey];
+    panel.querySelectorAll('.cpb-btn').forEach(btn => {
+      btn.classList.toggle('active', !isManual && btn.dataset.mode === activeMode);
+      btn.disabled = isManual;
+    });
+    panel.querySelector('.chip-manual-toggle')?.classList.toggle('active', isManual);
+  }
+
+  syncResourcePolicy(resKey, mode) {
+    this._resourcePolicies[resKey] = mode;
+    this._resourceManual[resKey] = false;
+    this._refreshPanelUI(resKey);
+  }
+
+  activateManualMode(resKey) {
+    if (resKey && !this._resourceManual[resKey]) {
+      this._resourceManual[resKey] = true;
+      this._refreshPanelUI(resKey);
+    }
+  }
+
+  reapplyActivePolicies() {
+    for (const resKey of ['reg', 'ice', 'comp', 'o2']) {
+      if (!this._resourceManual[resKey] && this._resourcePolicies[resKey] === 'stabilize') {
+        this._callbacks.onResourcePolicy?.(resKey, 'stabilize');
+      }
+    }
+  }
+
+  _updateChipPanels({
+    regProduced, regConsumed,
+    iceProduced, iceConsumed,
+    o2Produced, o2Consumed,
+    compProduced, compConsumed,
+    isDay,
+    energyProduced, energyProducedDay, energyProducedNight,
+    energyConsumed, energyRequired,
+    energyStored, maxEnergy,
+    crewTotal, crewEmployed,
+    remainingNightGameSecs = 120,
+  }) {
+    const fmt = (n) => Math.round(n * 10) / 10;
+    const signedVal = (n) => {
+      const r = fmt(n);
+      if (r === '0' || r === '-0') return { str: '0', color: 'var(--white)' };
+      return n > 0
+        ? { str: `+${r}`, color: 'var(--green)' }
+        : { str: r,       color: 'var(--red)'   };
+    };
+    const row = (prod, cons) => {
+      const net = prod - cons;
+      const { str: netStr, color: netColor } = signedVal(net);
+      return `
+        <div class="chip-panel-rows">
+          <div class="chip-panel-row"><span class="cpr-label">PRODUCED</span><span class="cpr-val" style="color:var(--green)">+${fmt(prod)}</span></div>
+          <div class="chip-panel-row"><span class="cpr-label">CONSUMED</span><span class="cpr-val" style="color:var(--red)">−${fmt(cons)}</span></div>
+          <div class="chip-panel-row cpr-net"><span class="cpr-label">NET</span><span class="cpr-val" style="color:${netColor}">${netStr}</span></div>
+        </div>`;
+    };
+
+    const nrgCol = (prod, active) => {
+      const free   = prod - energyConsumed;
+      const netReq = prod - energyRequired;
+      const dimmed = !active;
+      const staticClr = dimmed ? 'var(--text-dim)' : 'var(--white)';
+      const { str: freeStr,   color: freeColor   } = dimmed ? { str: fmt(free),   color: 'var(--text-dim)' } : signedVal(free);
+      const { str: netReqStr, color: netReqColor } = dimmed ? { str: fmt(netReq), color: 'var(--text-dim)' } : signedVal(netReq);
+      return { prod, free, netReq, staticClr, freeStr, freeColor, netReqStr, netReqColor };
+    };
+    const day   = nrgCol(energyProducedDay,   isDay);
+    const night = nrgCol(energyProducedNight, !isDay);
+    const dayIconColor   = isDay  ? 'var(--col-nrg)'  : 'var(--text-dim)';
+    const nightIconColor = !isDay ? '#58a6ff'          : 'var(--text-dim)';
+
+    // Battery calculations
+    const tickSecs     = ECONOMY_TICK_MS / 1000;
+    const hasBatteries = maxEnergy > 0;
+    const netFree      = energyProduced - energyConsumed;
+    const isFull       = hasBatteries && energyStored >= maxEnergy;
+    const nightDrain  = Math.max(0, energyConsumed - energyProducedNight); // battery draw per tick at night with current consumption
+    const isCharging    = hasBatteries && !isFull && netFree > 0;
+    const isDischarging = hasBatteries && netFree < 0;
+    const capPct = hasBatteries ? Math.min(100, (energyStored / maxEnergy) * 100) : 0;
+
+    // Times displayed as game-seconds: 1 tick = tickSecs game-seconds regardless of real speed
+    const _chargeRemGame = (!isFull && netFree > 0) ? ((maxEnergy - energyStored) / netFree) * tickSecs : null;
+    // If battery is empty, autonomy is 0 even when nightDrain = 0
+    const _autonomyGame  = !hasBatteries ? null
+      : (energyStored === 0) ? 0
+      : (nightDrain > 0) ? (energyStored / nightDrain) * tickSecs
+      : null;
+    const chargeRemRounded  = _chargeRemGame  !== null ? Math.ceil(_chargeRemGame  / tickSecs) * tickSecs : null;
+    const autonomyRounded   = _autonomyGame   !== null ? Math.floor(_autonomyGame  / tickSecs) * tickSecs : null;
+    const chargeStr  = !hasBatteries ? '—' : isFull ? 'FULL' : fmtTime(chargeRemRounded);
+    const autonomyStr = !hasBatteries ? '—' : autonomyRounded !== null ? fmtTime(autonomyRounded) : '∞';
+    const autonomyRed = _autonomyGame !== null && _autonomyGame < remainingNightGameSecs;
+
+    const chargeIco = isCharging
+      ? `<span class="chip-nrg-status-ico charging">${ico('arrow-up', 10, 'var(--green)')}</span>`
+      : isDischarging
+        ? `<span class="chip-nrg-status-ico discharging">${ico('arrow-down', 10, 'var(--red)')}</span>`
+        : '';
+
+    const nrgHtml = `
+      <div class="chip-panel-rows chip-nrg-grid">
+        <div class="chip-panel-row cpr-nrg-hdr">
+          <span class="cpr-label"></span>
+          <span class="cpr-col-hdr">${ico('sun', 14, dayIconColor)}</span>
+          <span class="cpr-col-hdr">${ico('moon', 14, nightIconColor)}</span>
+        </div>
+        <div class="chip-panel-row">
+          <span class="cpr-label">PRODUCED</span>
+          <span class="cpr-val" style="color:${day.staticClr}">${fmt(day.prod)}</span>
+          <span class="cpr-val" style="color:${night.staticClr}">${fmt(night.prod)}</span>
+        </div>
+        <div class="chip-panel-row">
+          <span class="cpr-label">REQUESTED</span>
+          <span class="cpr-val" style="color:${day.staticClr}">${fmt(energyRequired)}</span>
+          <span class="cpr-val" style="color:${night.staticClr}">${fmt(energyRequired)}</span>
+        </div>
+        <div class="chip-panel-row">
+          <span class="cpr-label">CONSUMED</span>
+          <span class="cpr-val" style="color:${day.staticClr}">${fmt(energyConsumed)}</span>
+          <span class="cpr-val" style="color:${night.staticClr}">${fmt(energyConsumed)}</span>
+        </div>
+        <div class="chip-panel-row cpr-net">
+          <span class="cpr-label">NET FREE</span>
+          <span class="cpr-val" style="color:${day.freeColor}">${day.freeStr}</span>
+          <span class="cpr-val" style="color:${night.freeColor}">${night.freeStr}</span>
+        </div>
+        <div class="chip-panel-row cpr-net">
+          <span class="cpr-label">NET REQ</span>
+          <span class="cpr-val" style="color:${day.netReqColor}">${day.netReqStr}</span>
+          <span class="cpr-val" style="color:${night.netReqColor}">${night.netReqStr}</span>
+        </div>
+      </div>
+      <div class="chip-nrg-battery-section">
+        <span class="chip-nrg-battery-title">${ico('battery-full', 11, 'var(--col-nrg)')} BATTERIES ${chargeIco}</span>
+        <div class="chip-nrg-battery-rows">
+          <div class="chip-panel-row">
+            <span class="cpr-label">CAPACITY</span>
+            <span class="cpr-val">${Math.round(energyStored)} / ${Math.round(maxEnergy)}</span>
+          </div>
+          <div class="chip-nrg-bar-row">
+            <div class="chip-nrg-bar"><div class="chip-nrg-bar-fill" style="width:${capPct}%"></div></div>
+          </div>
+          <div class="chip-panel-row">
+            <span class="cpr-label">FULL CHARGE</span>
+            <span class="cpr-val" id="chip-nrg-charge-val">${chargeStr}</span>
+          </div>
+          <div class="chip-panel-row">
+            <span class="cpr-label">NIGHT AUTONOMY</span>
+            <span class="cpr-val" id="chip-nrg-autonomy-val" style="color:${autonomyRed ? 'var(--red)' : 'var(--white)'}">${autonomyStr}</span>
+          </div>
+        </div>
+      </div>`;
+
+    const crewIdle = crewTotal - crewEmployed;
+    const crewHtml = `
+      <div class="chip-panel-rows">
+        <div class="chip-panel-row"><span class="cpr-label">TOTAL</span><span class="cpr-val">${fmt(crewTotal)}</span></div>
+        <div class="chip-panel-row"><span class="cpr-label">EMPLOYED</span><span class="cpr-val">${fmt(crewEmployed)}</span></div>
+        <div class="chip-panel-row cpr-net"><span class="cpr-label">IDLE</span><span class="cpr-val" style="color:${crewIdle > 0 ? 'var(--text-dim)' : 'var(--red)'}">${fmt(crewIdle)}</span></div>
+      </div>`;
+
+    const breakdowns = {
+      'chip-panel-reg':  row(regProduced,  regConsumed),
+      'chip-panel-comp': row(compProduced, compConsumed),
+      'chip-panel-ice':  row(iceProduced,  iceConsumed),
+      'chip-panel-o2':   row(o2Produced,   o2Consumed),
+      'chip-panel-nrg':  nrgHtml,
+      'chip-panel-crew': crewHtml,
+    };
+
+    for (const [id, html] of Object.entries(breakdowns)) {
+      const panel = document.getElementById(id);
+      if (!panel) continue;
+      const bd = panel.querySelector('.chip-breakdown') ?? panel;
+      bd.innerHTML = html;
+    }
+    refreshIcons();
+
   }
 
   // ===========================================================================
@@ -301,6 +607,7 @@ export class UIManager {
 
       for (const [type, info] of Object.entries(BUILDINGS_INFO)) {
         if (type === 'command' || type === 'conduit' || !info.isDistrictCenter) continue;
+        if (info.districtType && !DISTRICT_TYPES[info.districtType]) continue;
 
         const regOk = (info.cost ?? 0) === 0 || regolith >= (info.cost ?? 0);
         const compOk = (info.costComponents ?? 0) === 0 || components >= (info.costComponents ?? 0);
@@ -657,7 +964,9 @@ export class UIManager {
   _onResourcesUpdated(data) {
     const {
       regolith, ice, oxygen, components,
-      energyProduced, energyConsumed, energyRequired,
+      isDay = true,
+      energyProduced, energyProducedDay = energyProduced, energyProducedNight = 0,
+      energyConsumed, energyRequired,
       energyStored, maxEnergy,
       crewTotal, crewEmployed,
       deltaReg, deltaIce, deltaO2, deltaComp, deltaEnergy,
@@ -666,8 +975,26 @@ export class UIManager {
       maxIce = 100,
       maxComponents = 100,
       deadlockActive = false,
-      deadlockTime = 0
+      deadlockTime = 0,
+      regProduced = 0, regConsumed = 0,
+      iceProduced = 0, iceConsumed = 0,
+      o2Produced = 0, o2Consumed = 0,
+      compProduced = 0, compConsumed = 0,
+      remainingNightGameSecs = 120,
     } = data;
+
+    this._updateChipPanels({
+      regProduced, regConsumed,
+      iceProduced, iceConsumed,
+      o2Produced, o2Consumed,
+      compProduced, compConsumed,
+      isDay,
+      energyProduced, energyProducedDay, energyProducedNight,
+      energyConsumed, energyRequired,
+      energyStored, maxEnergy,
+      crewTotal, crewEmployed,
+      remainingNightGameSecs,
+    });
 
     // Regolith: NET (grande) & STORAGE BAR (piccolo)
     const regValEl = document.getElementById('res-reg-val');
@@ -737,14 +1064,34 @@ export class UIManager {
     const nrgBarEl = document.getElementById('res-nrg-bar');
 
     if (nrgValEl) {
-      const signNrg = deltaEnergy >= 0 ? '+' : '';
-      nrgValEl.innerText = `${signNrg}${Math.round(deltaEnergy)}`;
-      nrgValEl.style.color = deltaEnergy < 0 ? 'var(--red)' : 'var(--white)';
+      const nrgFree = Math.max(0, energyProduced - energyConsumed);
+      nrgValEl.innerText = `+${Math.round(nrgFree)}`;
+      nrgValEl.style.color = 'var(--white)';
     }
     if (nrgStorageEl && nrgBarEl) {
       nrgStorageEl.innerText = `${Math.round(energyStored)} / ${maxEnergy}`;
       const nrgPct = maxEnergy > 0 ? Math.min(100, Math.max(0, (energyStored / maxEnergy) * 100)) : 0;
       nrgBarEl.style.width = `${nrgPct}%`;
+    }
+
+    const nrgArrowEl = document.getElementById('res-nrg-arrow');
+    if (nrgArrowEl) {
+      const hasBat      = maxEnergy > 0;
+      const netFree     = energyProduced - energyConsumed;
+      const isFull      = hasBat && energyStored >= maxEnergy;
+      const isCharging  = hasBat && !isFull && netFree > 0;
+      const isDischarging = hasBat && netFree < 0;
+      if (isCharging) {
+        nrgArrowEl.innerHTML = ico('arrow-up', 10, 'var(--green)');
+        nrgArrowEl.className = 'res-nrg-arrow charging';
+      } else if (isDischarging) {
+        nrgArrowEl.innerHTML = ico('arrow-down', 10, 'var(--red)');
+        nrgArrowEl.className = 'res-nrg-arrow discharging';
+      } else {
+        nrgArrowEl.innerHTML = '';
+        nrgArrowEl.className = 'res-nrg-arrow';
+      }
+      lucide?.createIcons?.({ nodes: [nrgArrowEl] });
     }
 
     const chipNrg = document.getElementById('chip-nrg');
@@ -881,6 +1228,7 @@ export class UIManager {
   setSelectedBuildingButton(_buttonEl) { }
 
   updatePauseButton(isPaused) {
+    this._gamePaused = isPaused;
     const btn = document.getElementById('btn-pause');
     const icoEl = document.getElementById('ico-pause');
     if (!btn) return;

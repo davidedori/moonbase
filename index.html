@@ -88,7 +88,8 @@
         <div class="res-row-top">
           <span class="res-icon"><i data-lucide="zap"></i></span>
           <span class="res-value" id="res-nrg-val">0</span>
-          <span class="res-label">ENERGY (NET)</span>
+          <span class="res-label">ENERGY (FREE)</span>
+          <span id="res-nrg-arrow" class="res-nrg-arrow"></span>
         </div>
         <div class="res-row-bottom">
           <span class="res-mini-text" id="res-nrg-storage">0 / 0</span>
@@ -244,6 +245,14 @@
       }
     });
   </script>
+
+  <!-- Chip detail panels (hover top-bar) -->
+  <div class="chip-panel" id="chip-panel-reg"></div>
+  <div class="chip-panel" id="chip-panel-comp"></div>
+  <div class="chip-panel" id="chip-panel-ice"></div>
+  <div class="chip-panel" id="chip-panel-o2"></div>
+  <div class="chip-panel" id="chip-panel-nrg"></div>
+  <div class="chip-panel" id="chip-panel-crew"></div>
 
 </body>
 

@@ -68,6 +68,7 @@ import {
   ROVER_WRECK_RECYCLE_COMP,
   DISTRICT_MODULE_NEIGHBOR_GAP,
   DEPOSIT_MIN_CAPACITY,
+  NIGHT_DURATION_MS,
   DEPOSIT_MAX_CAPACITY,
   DEPOSIT_RICH_DIST,
   DEPOSIT_POOR_DIST,
@@ -84,6 +85,24 @@ const BUILDING_COLOR = (() => {
   }
   return map;
 })();
+
+const RESOURCE_PRODUCERS = {
+  reg:  ['regolith_extractor'],
+  ice:  ['ice_extractor'],
+  comp: ['component_factory'],
+  o2:   ['isru_plant', 'botany_greenhouse'],
+};
+
+// Quando si imposta la policy di comp/o2, la risorsa input segue automaticamente
+const POLICY_CASCADE = { comp: 'reg', o2: 'ice' };
+
+const BUILDING_RESOURCE_KEY = {
+  regolith_extractor: 'reg',
+  ice_extractor:      'ice',
+  component_factory:  'comp',
+  isru_plant:         'o2',
+  botany_greenhouse:  'o2',
+};
 
 export class MoonbaseScene extends Phaser.Scene {
   constructor() {
@@ -135,7 +154,12 @@ export class MoonbaseScene extends Phaser.Scene {
 
     this.load.image('crater', './graphics/crater.png');
     this.load.image('crater-big', './graphics/crater-big.png');
-    this.load.image('ridge', './graphics/ridge.png');
+    this.load.json('ridges-manifest', './graphics/ridges/manifest.json');
+    this.load.on('filecomplete-json-ridges-manifest', (_key, _type, files) => {
+      files.forEach((filename, i) => {
+        this.load.image(`ridge-${i}`, `./graphics/ridges/${filename}`);
+      });
+    });
     this.load.image('artemis-wreck', './graphics/artemis-wreck.png');
     this.load.image('supply-drop', './graphics/supply-drop.png');
 
@@ -161,6 +185,7 @@ export class MoonbaseScene extends Phaser.Scene {
     this.selectedEntity = null;   // { type: 'rover'|'building', ref } oppure null
     this.isGamePaused = false;
     this.isGameOver = false;
+    this._lastSpeed = 1;
 
     this._selectedRoverWasMoving = false;
 
@@ -242,6 +267,7 @@ export class MoonbaseScene extends Phaser.Scene {
     this.ui = new UIManager(this._emitter, {
       onTogglePause: (btn) => this._togglePause(btn),
       onToggleResourceLens: () => this._toggleResourceLens(),
+      onResourcePolicy: (resKey, mode) => this._applyResourcePolicy(resKey, mode),
     });
 
     // --- MissionControl (Sprint 4) ---
@@ -266,6 +292,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
     // --- Sprint 3: Speed & Hazards ---
     this._emitter.on('change-speed', ({ speed }) => {
+      if (speed > 0) this._lastSpeed = speed;
       this.time.timeScale = speed;
       this.tweens.timeScale = speed;
     });
@@ -1192,23 +1219,41 @@ export class MoonbaseScene extends Phaser.Scene {
     // Presumiamo che this.fowMask sia già stato creato e configurato altrove.
 
     // 1. Ostacoli singoli (Creste) - GRAFICA
+    const ridgeFiles = this.cache.json.get('ridges-manifest');
+    const ridgeCount = ridgeFiles?.length ?? 1;
+
+    // Greedy variant assignment: no two adjacent (8-dir) tiles get the same PNG
+    const ridgeVariantMap = {};
+    const prevDirs = [[-1, -1], [-1, 0], [-1, 1], [0, -1]];
+    for (let row = 0; row < GRID_SIZE; row++) {
+      for (let col = 0; col < GRID_SIZE; col++) {
+        if (this.terrainGrid[row][col] !== 'ridge') continue;
+        const used = new Set();
+        for (const [dr, dc] of prevDirs) {
+          const key = `${row + dr}_${col + dc}`;
+          if (ridgeVariantMap[key] !== undefined) used.add(ridgeVariantMap[key]);
+        }
+        const candidates = [];
+        for (let i = 0; i < ridgeCount; i++) {
+          if (!used.has(i)) candidates.push(i);
+        }
+        const pool = candidates.length > 0 ? candidates : [...Array(ridgeCount).keys()];
+        ridgeVariantMap[`${row}_${col}`] = pool[Phaser.Math.Between(0, pool.length - 1)];
+      }
+    }
+
     for (let row = 0; row < GRID_SIZE; row++) {
       for (let col = 0; col < GRID_SIZE; col++) {
         if (this.terrainGrid[row][col] !== 'ridge') continue;
 
         const { x: cx, y: cy } = cartesianToIsometric(col, row);
-        const sprite = this.add.image(cx, cy, 'ridge');
+        const idx = ridgeVariantMap[`${row}_${col}`];
+        const sprite = this.add.image(cx, cy, `ridge-${idx}`);
         sprite.setDisplaySize(TILE_W * 1.1, TILE_W * 1.1 * (sprite.height / sprite.width));
-        // Depth isometrico per la cresta
         sprite.setDepth(cy - cx * 0.001);
-        // Rimuoviamo mask FoW per prestazioni, gestiamo visibilità manuale
-        // sprite.setMask(this.fowMask);
-        
-        // Agganciamento visibilità in base a Fog of War
         sprite.col = col;
         sprite.row = row;
         sprite.setVisible(this.exploredTiles[row][col]);
-        
         this.terrainProps.push(sprite);
       }
     }
@@ -1745,7 +1790,10 @@ export class MoonbaseScene extends Phaser.Scene {
       ice: this.economy.ice,
       oxygen: this.economy.oxygen,
       components: this.economy.components,
+      isDay: this.economy.isDay,
       energyProduced: this.economy.energyProduced,
+      energyProducedDay: this.economy.energyProducedDay ?? this.economy.energyProduced,
+      energyProducedNight: this.economy.energyProducedNight ?? 0,
       energyConsumed: this.economy.energyConsumed,
       energyRequired: this.economy.energyRequired,
       energyStored: this.economy.energyStored,
@@ -1761,6 +1809,21 @@ export class MoonbaseScene extends Phaser.Scene {
       deltaO2: this.economy.deltaO2,
       deltaComp: this.economy.deltaComp,
       deltaEnergy: this.economy.deltaEnergy,
+      regProduced: this.economy.regProduced ?? 0,
+      regConsumed: this.economy.regConsumed ?? 0,
+      iceProduced: this.economy.iceProduced ?? 0,
+      iceConsumed: this.economy.iceConsumed ?? 0,
+      o2Produced: this.economy.o2Produced ?? 0,
+      o2Consumed: this.economy.o2Consumed ?? 0,
+      compProduced: this.economy.compProduced ?? 0,
+      compConsumed: this.economy.compConsumed ?? 0,
+      remainingNightGameSecs: (() => {
+        const t = this.economy._dayNightTimer;
+        if (!t) return NIGHT_DURATION_MS / 1000;
+        return this.economy.isDay
+          ? NIGHT_DURATION_MS / 1000
+          : Math.max(0, (t.delay - t.getElapsed()) / 1000);
+      })(),
     });
   }
 
@@ -2032,6 +2095,7 @@ export class MoonbaseScene extends Phaser.Scene {
 
     this.selectedBuilding = null;
     this.highlighter.clear();
+    this.ui.reapplyActivePolicies();
     this._updateContextPanel();
 
     return true;
@@ -2399,6 +2463,7 @@ export class MoonbaseScene extends Phaser.Scene {
         placed.isConstructing = false;
         this._updateNetworkConnectivity();
         this.economy.updateProjections();
+        this.ui.reapplyActivePolicies();
       }
     });
 
@@ -3448,6 +3513,7 @@ export class MoonbaseScene extends Phaser.Scene {
     this.ui.setSelectedBuildingButton(null);
     this.highlighter.clear();
 
+    this.ui.reapplyActivePolicies();
     // Ricalcola le costruzioni disponibili nel pannello del rover (se ancora selezionato)
     this._updateContextPanel();
   }
@@ -3870,6 +3936,7 @@ export class MoonbaseScene extends Phaser.Scene {
         if (entity?.type === 'building') {
           this._demolishBuilding(entity.ref);
           this.selectedEntity = null;
+          this.ui.reapplyActivePolicies();
           this._updateContextPanel();
         }
       },
@@ -3885,12 +3952,17 @@ export class MoonbaseScene extends Phaser.Scene {
       },
       onPlaceModule: (district, slotIndex, moduleType) => {
         this._tryPlaceModule(district, slotIndex, moduleType);
+        this.ui.reapplyActivePolicies();
       },
       onRemoveModule: (district, slotIndex) => {
         this._removeModule(district, slotIndex);
+        this.ui.reapplyActivePolicies();
       },
       onTogglePower: (target) => {
         target.isPowered = !target.isPowered;
+
+        const resKey = BUILDING_RESOURCE_KEY[target.type];
+        if (resKey) this.ui.activateManualMode(resKey);
 
         if (target instanceof Rover) {
           target._lastPoweredState = null;
@@ -4274,6 +4346,17 @@ export class MoonbaseScene extends Phaser.Scene {
         this.selectedBuilding = null;
         this.ui.setSelectedBuildingButton(null);
         this.highlighter.clear();
+      }
+    });
+
+    // --- SPAZIO: toggle pausa / ultima velocità ---
+    this.input.keyboard.on('keydown-SPACE', () => {
+      if (this._menuOpen || this.isGameOver) return;
+      this._togglePause();
+      if (!this.economy.isPaused) {
+        this.time.timeScale = this._lastSpeed;
+        this.tweens.timeScale = this._lastSpeed;
+        this.ui.updateSpeedButtons(this._lastSpeed);
       }
     });
   }
@@ -4981,6 +5064,19 @@ export class MoonbaseScene extends Phaser.Scene {
     }
   }
 
+  _restorePOI({ type, col, row, reward }) {
+    const { x, y } = cartesianToIsometric(col, row);
+    const key = type === 'wreck' ? 'artemis-wreck' : 'supply-drop';
+    const scale = type === 'wreck' ? 0.7 : 0.5;
+    const img = this.add.image(x, y, key);
+    img.setDisplaySize(TILE_W * scale, TILE_W * scale * (img.height / img.width));
+    img.setDepth(y - x * 0.001);
+    img.col = col;
+    img.row = row;
+    img.setVisible(this.exploredTiles[row][col]);
+    this.pois.push({ type, col, row, sprite: img, reward });
+  }
+
   _spawnInitialPOIs() {
     for (let i = 0; i < INITIAL_WRECK_COUNT; i++) {
       const col = Phaser.Math.Between(5, GRID_SIZE - 5);
@@ -5091,5 +5187,75 @@ export class MoonbaseScene extends Phaser.Scene {
     this._emitter?.removeAllListeners();
     this._supplyDropEvent?.remove(false);
   }
+
+  // ===========================================================================
+  // RESOURCE POLICY (chip panel 3-way selector)
+  // ===========================================================================
+
+  _applyResourcePolicy(resKey, mode) {
+    const types = RESOURCE_PRODUCERS[resKey];
+    if (!types) return;
+    const buildings = this.buildings.filter(
+      b => types.includes(b.type) && b.connected !== false && !b.isConstructing
+    );
+    if (mode === 'off') {
+      buildings.forEach(b => b.isPowered = false);
+    } else if (mode === 'max') {
+      buildings.forEach(b => b.isPowered = true);
+    } else if (mode === 'stabilize') {
+      this._stabilizeResource(resKey, buildings);
+    }
+    this.economy.updateProjections();
+    this._updateContextPanel();
+
+    // Se la risorsa input (reg per comp, ice per o2) è in balance, ricalcola il suo equilibrio
+    const cascadeKey = POLICY_CASCADE[resKey];
+    if (cascadeKey && this.ui._resourcePolicies[cascadeKey] === 'stabilize' && !this.ui._resourceManual[cascadeKey]) {
+      this._applyResourcePolicy(cascadeKey, 'stabilize');
+    }
+
+    // Aggiorna subito la top bar (updateProjections non emette l'evento)
+    this._emitResourcesUpdate();
+  }
+
+  _stabilizeResource(resKey, buildings) {
+    buildings.forEach(b => b.isPowered = true);
+    this.economy.updateProjections();
+
+    const getDelta = () => ({ reg: this.economy.deltaReg, ice: this.economy.deltaIce,
+                              comp: this.economy.deltaComp, o2: this.economy.deltaO2 })[resKey] ?? 0;
+
+    if (getDelta() <= 0) return; // deficit o bilanciato → tieni tutto acceso
+
+    const extractorTypes = ['regolith_extractor', 'ice_extractor'];
+
+    // Ordine ASC: i peggiori per primi → verranno spenti per primi
+    const sorted = [...buildings].sort((a, b) => {
+      if (extractorTypes.includes(a.type)) {
+        const capA = this.capacityGrid[a.row]?.[a.col] ?? 0;
+        const capB = this.capacityGrid[b.row]?.[b.col] ?? 0;
+        return capA - capB;
+      }
+      const activeCount = (x) => x.district
+        ? x.district.slots.filter(s => s.module && s.module.isPowered !== false && s.module.connected !== false).length
+        : -1;
+      return activeCount(a) - activeCount(b);
+    });
+
+    // Spegni uno per volta e riproietta: gestisce le cascate energetiche
+    for (const b of sorted) {
+      if (getDelta() <= 0) break;
+      b.isPowered = false;
+      this.economy.updateProjections();
+      if (getDelta() < 0) {
+        // Siamo andati in deficit → ripristina e fermati
+        b.isPowered = true;
+        this.economy.updateProjections();
+        break;
+      }
+    }
+  }
+
+
 
 }
